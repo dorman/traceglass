@@ -40,7 +40,7 @@ const homeSections: SnapshotSection[] = [
       links: [
         { label: 'Install TraceGlass', href: '/install' },
         { label: 'How it works', href: '#workflow' },
-        { label: 'Open on GitHub', href: 'https://github.com/dorman/loglens' },
+        { label: 'Open on GitHub', href: 'https://github.com/dorman/traceglass' },
       ],
       stats: [
         { value: '100%', label: 'runs locally' },
@@ -49,7 +49,7 @@ const homeSections: SnapshotSection[] = [
       ],
       terminal: {
         title: 'docker-compose.log',
-        prompt: '$ loglens docker-compose.log',
+        prompt: '$ traceglass docker-compose.log',
         lines: [
           'INFO  Server ready on :8080',
           'INFO  Connected to postgres',
@@ -108,32 +108,32 @@ const homeSections: SnapshotSection[] = [
       {
         title: 'Splunk exports',
         body: 'Open a CSV export or choose JSON/CSV output for scripts while retaining raw source lines and matched evidence.',
-        command: '$ loglens --format json splunk-export.csv',
+        command: '$ traceglass --format json splunk-export.csv',
         output: '{ "file": "splunk-export.csv", "severity": "high" }',
       },
       {
         title: 'Docker Compose',
         body: 'Open a compose log and scan on open; use search, line filtering, and finding navigation to keep the review focused.',
-        command: '$ docker compose logs -t | loglens',
+        command: '$ docker compose logs -t | traceglass',
         output: 'L3  HIGH  container startup or runtime failure\nEnter → source evidence',
       },
       {
         title: 'Antivirus diagnostic logs',
         body: 'AV and EDR reports can be large and vendor-specific; line fallback keeps the source searchable even when a structure is unknown.',
-        command: '$ loglens diagnostic-collection.zip',
+        command: '$ traceglass diagnostic-collection.zip',
         output: '[2026-07-22 10:14] HIGH endpoint detection signal\nreview → jump to source line',
       },
       {
         title: 'kubectl pod logs',
         body: 'Kubernetes restart, probe, image-pull, and OOM signals are highlighted without requiring a vendor-specific parser.',
-        command: '$ kubectl logs api-x-7f9c | loglens',
+        command: '$ kubectl logs api-x-7f9c | traceglass',
         output:
           'INFO  container started\nHIGH OOMKilled  memory limit exceeded\nfinding evidence retained',
       },
       {
         title: 'CI runner logs',
         body: 'Use JSON or CSV records in CI when a script needs stable fields; findings remain neutral review signals with evidence and severity.',
-        command: '$ loglens --format csv runner.log',
+        command: '$ traceglass --format csv runner.log',
         output:
           'file,line,severity,message,evidence,raw\nrunner.log,2,medium,panic: …,Diagnostic assertion,…',
       },
@@ -148,21 +148,21 @@ const homeSections: SnapshotSection[] = [
         number: '01',
         title: 'Open a source',
         body: 'Pass a file, folder, ZIP bundle, or pipe stdin. The TUI scans file paths on open and preserves raw line identity.',
-        command: '$ loglens ./diagnostic-bundle/',
+        command: '$ traceglass ./diagnostic-bundle/',
         output: 'opened 8 file(s) · scanning diagnostic signals…',
       },
       {
         number: '02',
         title: 'Search and triage',
         body: 'Search text, filter visible lines, filter finding severity, and jump from a finding to its source evidence.',
-        command: '$ loglens --format json events.ndjson',
+        command: '$ traceglass --format json events.ndjson',
         output: '[ { "line": 2, "severity": "high", "finding": { ... } } ]',
       },
       {
         number: '03',
         title: 'Choose an output mode',
         body: 'Pipes default to raw text. Explicit raw, JSON, and CSV modes never start the interactive terminal protocol.',
-        command: '$ cat app.log | loglens --format csv',
+        command: '$ cat app.log | traceglass --format csv',
         output: 'file,line,severity,message,evidence,raw',
       },
     ],
@@ -225,7 +225,7 @@ const snapshots: Record<string, PageContentValue> = {
         heading: 'From source checkout to diagnostic review.',
         body: 'The TraceGlass one-click beta installer will verify the signed release, install for the current user, and open the same interactive TUI. It is not enabled until real artifacts are published; Cargo/source remains the technical fallback.',
         links: [
-          { label: 'Check release status', href: 'https://github.com/dorman/loglens/releases' },
+          { label: 'Check release status', href: 'https://github.com/dorman/traceglass/releases' },
           { label: 'Read release notes', href: '/release' },
         ],
       }),

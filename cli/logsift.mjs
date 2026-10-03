@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // @polsia:user-owned — cli/logsift.mjs is the legacy LogSift Node CLI kept only
 // for the unit test suite (tests/unit/logsift-*.test.ts). It is NOT the
-// official install path for the product — the official Rust-native loglens
+// official install path for the product — the official Rust-native TraceGlass
 // product is distributed through its signed beta installer when published or
 // a source build. Do not publish this artifact
 // to npm; do not promote it from customer-facing copy.

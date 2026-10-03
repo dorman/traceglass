@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const DEFAULT_CATALOG = new URL('../loglens/lenses/v0.1.0/catalog.json', import.meta.url);
+const DEFAULT_CATALOG = new URL('../traceglass/lenses/v0.1.0/catalog.json', import.meta.url);
 
 function nonEmpty(value, label) {
   if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`${label} must be non-empty`);
@@ -50,7 +50,7 @@ export function loadLensCatalog(path = DEFAULT_CATALOG) {
       ? path
       : path.protocol === 'file:'
         ? fileURLToPath(path)
-        : resolve(process.cwd(), 'loglens/lenses/v0.1.0/catalog.json');
+        : resolve(process.cwd(), 'traceglass/lenses/v0.1.0/catalog.json');
   const raw = JSON.parse(readFileSync(filePath, 'utf8'));
   return validateLensCatalog(raw);
 }

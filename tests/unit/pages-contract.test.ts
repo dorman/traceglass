@@ -166,7 +166,7 @@ describe('marketing page contracts', () => {
           data: {
             heading: 'Keep this heading',
             links: [{ label: 'Release', href: '/release', tracking: { campaign: 'owner' } }],
-            terminal: { prompt: '$ loglens app.log', output: 'HIGH finding' },
+            terminal: { prompt: '$ traceglass app.log', output: 'HIGH finding' },
           },
           assets: [{ id: 'hero-terminal', kind: 'visual', ref: 'terminal', focalPoint: 'center' }],
         },

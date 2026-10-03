@@ -7,7 +7,7 @@ import { validateLensCatalog } from '@/lib/contracts/lenses';
 const { loadLensCatalog, lensPlacement, selectLens } = await import('../../../cli/lenses.mjs');
 
 const catalog = JSON.parse(
-  readFileSync(resolve(process.cwd(), 'loglens/lenses/v0.1.0/catalog.json'), 'utf8'),
+  readFileSync(resolve(process.cwd(), 'traceglass/lenses/v0.1.0/catalog.json'), 'utf8'),
 ) as unknown;
 
 const rustIds = [

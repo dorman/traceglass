@@ -221,7 +221,7 @@ function provenanceFor(
 
 /**
  * Compile a single pattern's match rule into a matcher. The default for
- * regex matches is `'i'` so the contract matches legacy loglens behaviour
+ * regex matches is `'i'` so the contract matches legacy TraceGlass behaviour
  * (case-IN-sensitive); string matches follow the same default for parity.
  */
 function compileMatcher(pattern: SignaturePatternT): Omit<CompiledMatcher, 'provenance'> {

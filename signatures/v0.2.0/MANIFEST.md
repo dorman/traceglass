@@ -1,4 +1,4 @@
-# loglens signature library — v0.2.0
+# TraceGlass signature library — v0.2.0
 
 This directory is the v0.2.0 signature data catalog. It is a directory of
 per-set JSON manifests consumed by the web catalog loader; there is no
@@ -36,5 +36,5 @@ three operational manifests forward unchanged and adds the three new
 vendor-focused manifests; their v0.1.0 version provenance is preserved.
 
 The Rust built-in catalog is separate and does not load these JSON files at
-runtime. See `loglens/docs/SIGNATURES.md` for the shared evidence vocabulary,
+runtime. See `traceglass/docs/SIGNATURES.md` for the shared evidence vocabulary,
 watchlist boundary, and deferred coverage gaps.
