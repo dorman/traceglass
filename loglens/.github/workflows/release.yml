@@ -1,0 +1,210 @@
+# @polsia:user-owned — signed release automation for native beta installers.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (for example v0.1.0)"
+        required: true
+        type: string
+
+permissions: {}
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - name: Validate package and installer
+        working-directory: loglens
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="$(cargo pkgid | sed -E 's/.*#.*@([0-9.]+)$/\1/')"
+          test "$RELEASE_TAG" = "v$version"
+          cargo fmt --all -- --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --locked
+          cargo package --locked
+          cargo build --manifest-path installer/Cargo.toml --release
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
+      - name: Build loglens and installer
+        working-directory: loglens
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }}
+          cargo build --manifest-path installer/Cargo.toml --release --target ${{ matrix.target }}
+      - name: Package and smoke-test
+        working-directory: loglens
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${{ matrix.target }}"
+          extension=""
+          if [[ "$target" == *windows* ]]; then extension=".exe"; fi
+          stage="loglens-$target"
+          installer="loglens-installer-$target$extension"
+          mkdir -p "$stage"
+          cp "target/$target/release/loglens$extension" "$stage/"
+          cp README.md LICENSE "$stage/"
+          cp "installer/target/$target/release/loglens-installer$extension" "$installer"
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            7z a "$stage.zip" "$stage"
+            archive="$stage.zip"
+          else
+            tar -czf "$stage.tar.gz" "$stage"
+            archive="$stage.tar.gz"
+          fi
+          if [[ "$target" == *windows* ]]; then
+            7z l "$archive" | grep -q "$stage/loglens.exe"
+          else
+            tar -tzf "$archive" | grep -q "$stage/loglens$"
+            test -x "$installer"
+          fi
+          "$stage/loglens$extension" --version
+          "$stage/loglens$extension" --help | grep -q -- '--format'
+          "$stage/loglens$extension" --format json samples/sample.log > smoke.json
+          grep -q '"file"' smoke.json
+          "./$installer" --help | grep -q 'Verify and install'
+      - uses: actions/upload-artifact@ea165f8f65b6e75b540449e92b4886f43607fa02
+        with:
+          name: loglens-${{ matrix.target }}
+          path: |
+            loglens/loglens-${{ matrix.target }}.tar.gz
+            loglens/loglens-${{ matrix.target }}.zip
+            loglens/loglens-installer-${{ matrix.target }}
+            loglens/loglens-installer-${{ matrix.target }}.exe
+
+  publish-release:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          path: dist
+      - name: Require all artifacts and the signing key
+        env:
+          LOGLENS_RELEASE_SIGNING_KEY_PEM: ${{ secrets.LOGLENS_RELEASE_SIGNING_KEY_PEM }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          find dist -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name 'loglens-installer-*' \) -exec cp {} assets/ \;
+          test "$(find assets -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) | wc -l)" -eq 4
+          test "$(find assets -maxdepth 1 -type f -name 'loglens-installer-*' | wc -l)" -eq 4
+          test -n "$LOGLENS_RELEASE_SIGNING_KEY_PEM"
+      - name: Generate signed manifest, hashes, and signatures
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          LOGLENS_RELEASE_SIGNING_KEY_PEM: ${{ secrets.LOGLENS_RELEASE_SIGNING_KEY_PEM }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$LOGLENS_RELEASE_SIGNING_KEY_PEM" > signing-key.pem
+          python3 - <<'PY'
+          import hashlib, json, os, tarfile, zipfile
+          from pathlib import Path
+          assets = Path("assets")
+          tag = os.environ["RELEASE_TAG"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          base = "https://github.com/{}/releases/download/{}".format(repository, tag)
+          archives = sorted(list(assets.glob("loglens-*.tar.gz")) + list(assets.glob("loglens-*.zip")))
+          targets = []
+          for archive in archives:
+              suffix = ".tar.gz" if archive.name.endswith(".tar.gz") else ".zip"
+              target = archive.name[len("loglens-") : -len(suffix)]
+              installer_name = "loglens-installer-" + target + (".exe" if "windows" in target else "")
+              installer = assets / installer_name
+              if not installer.is_file():
+                  raise SystemExit("missing installer for " + target)
+              if suffix == ".tar.gz":
+                  with tarfile.open(archive, "r:gz") as bundle:
+                      member = next(item for item in bundle.getmembers() if item.name.endswith("/loglens"))
+                      executable = bundle.extractfile(member).read()
+                  archive_format = "tar.gz"
+              else:
+                  with zipfile.ZipFile(archive) as bundle:
+                      member = next(item for item in bundle.infolist() if item.filename.endswith("/loglens.exe"))
+                      executable = bundle.read(member)
+                  archive_format = "zip"
+              def digest(path):
+                  return hashlib.sha256(path.read_bytes()).hexdigest()
+              def artifact(path):
+                  return {"filename": path.name, "url": "{}/{}".format(base, path.name),
+                          "sha256": digest(path), "signatureUrl": "{}/{}.sig".format(base, path.name),
+                          "signatureScheme": "Ed25519", "signingKeyId": "loglens-release-ed25519-2026"}
+              targets.append({"target": target, "installer": artifact(installer),
+                              "payload": dict(artifact(archive), archiveFormat=archive_format,
+                                              executableSha256=hashlib.sha256(executable).hexdigest())})
+          manifest = {"schema": "loglens-release/v1", "repository": repository,
+                      "version": tag, "targets": targets}
+          (assets / "loglens-release.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+          for artifact in assets/loglens-*.tar.gz assets/loglens-*.zip assets/loglens-installer-*; do
+            openssl pkeyutl -sign -inkey signing-key.pem -in "$artifact" -out "$artifact.sig"
+          done
+          openssl pkeyutl -sign -inkey signing-key.pem -in assets/loglens-release.json -out assets/loglens-release.json.sig
+          (cd assets && sha256sum -- *.tar.gz *.zip loglens-installer-* loglens-release.json > SHA256SUMS)
+          openssl pkeyutl -sign -inkey signing-key.pem -in assets/SHA256SUMS -out assets/SHA256SUMS.sig
+          rm -f signing-key.pem
+          test -s assets/loglens-release.json.sig
+          test -s assets/SHA256SUMS.sig
+      - name: Publish only after verification gates
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: loglens ${{ inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          files: assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

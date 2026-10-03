@@ -1,128 +1,147 @@
 # loglens
 
-**Grammarly for logs** — an interactive terminal UI that highlights, scans, and
-triages diagnostic logs so you find what matters in seconds instead of
-scrolling for minutes.
+This repository contains the loglens marketing app and the canonical Rust CLI
+source in [`loglens/`](./loglens/). loglens is a local-first terminal tool for
+opening diagnostic logs, finding severity-ranked signals, and reviewing the
+source evidence without uploading log content. Keyword and regex highlights
+are user-controlled entries in a local watchlist; curated built-in signatures
+are separate versioned scan metadata. The watchlist needs no AI or network
+access, and no candidate suggestions are currently generated.
 
-Built for support specialists, L2 engineers, and DevOps who get handed log
-files or diagnostic bundles (AV support collections, Splunk exports, Docker
-logs) and need to spot trouble fast.
+## CLI install
 
-```text
-╭ agent.log ─────────────────────────────────────────────────╮╭ Highlights (click to jump) ─╮
-│   3 │ 2026-07-22 10:00:05 WARN  Real-time protection module ││  ██ ERROR kw 4              │
-│   4 │ 2026-07-22 10:00:07 ERROR Failed to connect to update ││  ██ WARN  kw 3              │
-│   6 │ 2026-07-22 10:00:09 ERROR Certificate validation faile││                             │
-│   8 │ 2026-07-22 10:01:03 WARN  Suspicious process detected:││                             │
-╰────────────────────────────────────────────────────────────╯╰─────────────────────────────╯
- L4/15 · 7 hl  ·  ? help
-```
+The primary beta path is the LogSift one-click installer. It is planned for
+Linux glibc x86_64, macOS Apple silicon, macOS Intel, and Windows x86_64. The
+installer is not advertised as available until the matching native installer,
+CLI archive, signed Ed25519 manifest, detached signatures, and SHA-256 data are
+published together in a GitHub Release.
 
-## Highlights
+When published, download the installer for the exact target from
+[GitHub Releases](https://github.com/dorman/loglens/releases), run it locally,
+and follow its prompts. It verifies the signed manifest, target payload, safe
+archive contents, and extracted executable before any install write. It defaults
+to a current-user location, asks before PATH or shortcut changes, and asks
+before opening a new terminal for the no-argument interactive TUI. It never
+uploads logs, enables telemetry, installs a service, or silently updates.
 
-- **Scans on open** — zero-config detection of known-bad signals (encoded
-  PowerShell, cert failures, clock rollback, crashes, …) starts the moment a
-  file, folder, or bundle is opened, ranked by severity with plain-English
-  explanations and jump-to-line. The progress bar paints the severity mix as it
-  finds it; `S` rescans, `--no-scan` opts out
-- **Keyword & regex highlighting** — every tracked term gets its own color;
-  add/remove live from inside the TUI
-- **Search & filter** — `/` to search, `f` to collapse a 10,000-line log down
-  to only the lines that matter
-- **Bundle-aware** — open a whole folder or `.zip` diagnostic collection;
-  every log inside becomes a tab, binaries are skipped automatically
-- **Level tint** — `ERROR`/`WARN`/`INFO`/`DEBUG` (and aliases) soft-tint even
-  before you add highlights
-- **Full mouse support** — wheel scroll, click-drag scrollbar, click a
-  highlight to jump through its matches
-- **Settings (`,`)** — case-insensitive matching, the legend, and scan-on-open
-  in one panel; every change is saved for next time
+Windows SmartScreen, macOS Gatekeeper/Developer ID, and notarization status are
+separate from the Ed25519 release signature and are only claimed when those
+publisher credentials are configured.
 
-## Quick start
-
-### 1. Install
-
-**Current (pre-release):** install from source. A public binary / crates.io
-release is planned for later; until then there are no GitHub Release assets
-and the crate is not published.
+Until the beta artifacts are published, the technical fallback is a source
+build with Rust 1.85 or newer:
 
 ```sh
-# Requires Rust 1.85+ — https://rustup.rs
 git clone https://github.com/dorman/loglens.git
 cd loglens
 cargo install --path . --locked
 ```
 
-Teammates with repo access can also:
+### Contributor development
+
+Source builds are for contributors who need to change the Rust crate:
 
 ```sh
-cargo install --git https://github.com/dorman/loglens --locked
+git clone https://github.com/dorman/loglens.git
+cd loglens
+cargo build --locked
+cargo test --locked
 ```
 
-**Later (public release):** prebuilt archives will ship via
-[GitHub Releases](https://github.com/dorman/loglens/releases) (see
-`scripts/install.sh`), and `cargo install loglens` will work from crates.io
-once published. Do not tag or publish until testing is complete.
+## CLI behavior
 
-### 2. Run it
+A regular file path opens the interactive ratatui TUI and scans on open:
 
 ```sh
-loglens                      # opens the welcome screen — press o to browse
-loglens agent.log            # open one file and scan it
-loglens ./diag-bundle/       # open every log in a folder (recursive) and scan
-loglens support-logs.zip     # open every log inside a zip and scan
-loglens --no-scan big-bundle/ # open without scanning (press S when you want it)
+loglens agent.log
+loglens ./diagnostic-bundle/
+loglens support-logs.zip
 ```
 
-First moves once you're in:
-
-| Press | To |
-| ----- | -- |
-| `S`   | rescan everything for known-bad signatures (a scan already ran on open) |
-| `s`   | reopen the findings panel (no rescan) |
-| `p`/`P` | next / previous finding (no panel needed) |
-| `e`   | export findings to `loglens-findings.md` (numbered if it exists) |
-| `a`   | add a keyword highlight (each gets its own color) |
-| `/`   | search (`Enter` first hit · `n`/`N` walk) |
-| `:`   | jump to a line number |
-| `f`   | filter down to only matching lines |
-| `m`   | bookmark the current line (`'` / `"` jump · `M` clear all) |
-| `←`/`→` | pan left / right across long lines (`0` resets) |
-| `y`   | copy the cursor line to the clipboard |
-| `Y`   | copy the current file path to the clipboard |
-| `,`   | settings (case-insensitive, legend, scan-on-open — persisted) |
-| `?`   | full keybinding help |
-| `q`   | quit |
-
-Try it on the included samples:
+Piped stdin defaults to sanitized raw text. Explicit modes are always
+non-interactive and suitable for scripts:
 
 ```sh
-loglens samples/bundle       # a fake AV diagnostic bundle — scans as it opens
+cat app.log | loglens
+loglens --format raw app.log
+loglens --format json events.ndjson
+loglens --format csv events.csb
+loglens --lens incident-reliability --format json events.ndjson
+cat app.log | loglens --stdin --format json
 ```
 
-## Documentation
+Supported input includes plain text, `.txt`, `.log`, JSON, NDJSON, CSV, `.csb`
+(treated as CSV), folders, ZIP bundles, and stdin. JSON/CSV parsing enriches
+the `message` field while preserving each raw source line. Malformed or
+vendor-specific structures warn on stderr and fall back to line-level
+scanning/filtering.
 
-The full guide — every feature, keybinding, workflow, and troubleshooting —
-lives in **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**.
+The curated built-in signature catalog covers Docker/container logs, Kubernetes/k8s,
+systemd/journal, nginx, MySQL, PostgreSQL, Windows Event Logs, antivirus/EDR,
+Splunk exports, and generic diagnostics. The TUI supports search, visible-line
+filtering, severity filtering, highlight navigation, and jump/triage from a
+finding to its source line. Pressing `a` or `r` and confirming a value adds a
+keyword or regex highlight to the local watchlist; built-ins never enter the
+saved file. Findings are evidence for human review, not a security
+determination.
 
-## Development
+On the first interactive launch, loglens offers an optional four-page
+walkthrough for opening files and bundles, choosing lenses, searching/filtering,
+and reading/exporting findings. Press `Enter` to start, or `s`/`Esc` to skip.
+The choice is stored locally in the loglens config file; `T` in the viewer or
+help screen, or `--walkthrough`, replays it. Piped stdin, redirected output,
+`--format`, and `--findings` remain non-interactive and never print onboarding.
+
+The versioned `v0.1.0` lens catalog provides three deterministic review modes:
+`general-triage` (default), `incident-reliability`, and `security-signals`.
+`--lens <id>` selects one for a run. Lenses change grouping and priority only;
+all matches, source lines, occurrences, jump targets, provenance, explanations,
+and false-positive notes remain available. Unsupported external or legacy
+evidence is retained as `other-evidence`. Processing is local and AI-free, and
+lens selection never changes the separate user watchlist.
+
+## Machine-output schema
+
+`raw` removes ANSI and control sequences while retaining source text.
+`json` emits an array of records:
+
+```json
+{
+  "file": "events.ndjson",
+  "line": 2,
+  "raw": "{\"message\":\"connection refused\"}",
+  "message": "connection refused",
+  "severity": "medium",
+  "finding": {
+    "category": "network",
+    "title": "Connection refused / reset",
+    "evidence": "..."
+  }
+}
+```
+
+`csv` emits the stable header
+`file,line,severity,message,evidence,raw,signature_id,source,catalog,version,set,pattern,severity_rationale,explanation,false_positive_note,matched_evidence,lens_id,lens_version,lens_group,lens_priority`.
+JSON and CSV include all source lines, including rows without a finding.
+
+## Marketing app
+
+The commands below develop the surrounding Next.js marketing app; they are not
+CLI installation instructions.
+
+The surrounding Next.js app is a local product site. It uses the Polsia
+template's Next.js, Prisma, Tailwind, and shadcn baseline. App development
+commands are:
 
 ```sh
-cargo build            # debug build
-cargo test             # unit tests (run from the crate root)
-cargo clippy --all-targets -- -D warnings
-cargo fmt --check
-cargo run -- samples/bundle
+npm install
+npm run typecheck
+npm run lint
+npm run test
+SKIP_ENV_VALIDATION=1 npm run build
 ```
 
-Project layout: `src/main.rs` (wire-up), `src/cli.rs` (flags), `src/app.rs`
-(state & logic), `src/ui.rs` (rendering), `src/event.rs` (input),
-`src/ingest.rs` (file/folder/zip loading), `src/rules.rs` (highlight compile),
-`src/signatures.rs` (built-in detection library), `src/theme.rs` (dark palette /
-level tint), `src/browser.rs` (in-TUI file browser), `src/clipboard.rs` (OSC-52 yank),
-`src/config.rs` (persisted prefs such as ignore-case, legend visibility, and
-last file-browser directory).
-
-Resource caps for untrusted bundles (file size, zip extract, line/rule
-budgets) are listed in **[docs/USER_GUIDE.md — Limits & safety](docs/USER_GUIDE.md#limits--safety)**.
-Agent-oriented code map and CI notes live in **[AGENTS.md](AGENTS.md)**.
+The CLI fixture and mode matrix is documented in
+[`loglens/tests/README.md`](./loglens/tests/README.md). The CLI's complete
+usage guide and resource limits are in
+[`loglens/docs/USER_GUIDE.md`](./loglens/docs/USER_GUIDE.md).

@@ -1,0 +1,6 @@
+// @polsia:user-owned — persisted, validated public site appearance settings.
+model SiteDesign {
+  id        String   @id
+  settings  Json
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,10 @@
+docker: containerd failed to create shim task for container api
+kubernetes: pod api entered CrashLoopBackOff after OOMKilled
+systemd[1]: failed to start payments.service
+nginx: upstream timed out while reading response header
+mysqld: deadlock found when trying to get lock
+postgres: FATAL: password authentication failed for user app
+Windows Event ID 4625: Audit Failure
+EDR detection quarantined suspicious process
+splunkd search peer unavailable during dispatch
+diagnostic traceback: assertion failed in collector

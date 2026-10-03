@@ -1,0 +1,48 @@
+{
+  "version": "v0.2.0",
+  "set": "splunk-search-errors",
+  "title": "Splunk search and dispatch error signals",
+  "description": "Patterns for Splunk search-peer failures, search timeouts, and dispatch or licensing errors in Splunkd and search-head logs.",
+  "patterns": [
+    {
+      "name": "search peer failure",
+      "id": "splunk-search-peer-failure",
+      "severity": "critical",
+      "explanation": "Splunk could not use a search peer because it failed, went down, or became unavailable.",
+      "severityRationale": "Critical because distributed search coverage is impaired at the peer boundary.",
+      "falsePositiveNote": "Planned peer rotation, rolling restarts, and network maintenance can be transient.",
+      "examples": { "positive": "search peer idx-01 unavailable", "negative": "search peer idx-01 available" },
+      "match": { "regex": "search\\s+peer[^\\n]*(?:failed|down|unavailable)", "flags": "i" }
+    },
+    {
+      "name": "search timeout",
+      "id": "splunk-search-timeout",
+      "severity": "warning",
+      "explanation": "A Splunk search did not complete before its timeout.",
+      "severityRationale": "Warning because the query failed to finish, while the service may still be healthy.",
+      "falsePositiveNote": "Large exploratory searches and intentionally short test timeouts can trigger this signal.",
+      "examples": { "positive": "search job timed out after 30s", "negative": "search job completed in 30s" },
+      "match": { "regex": "search\\b[^\\n]*(?:timed\\s+out|timeout)", "flags": "i" }
+    },
+    {
+      "name": "search bundle initialization error",
+      "id": "splunk-search-bundle-init",
+      "severity": "critical",
+      "explanation": "Splunk could not initialize the search bundle needed to execute a search.",
+      "severityRationale": "Critical because search dispatch cannot begin with an unavailable bundle.",
+      "falsePositiveNote": "A bundle deployment race or intentionally invalid test bundle can cause this error.",
+      "examples": { "positive": "Unable to initialize search bundle", "negative": "Search bundle initialized" },
+      "match": { "string": "Unable to initialize search bundle" }
+    },
+    {
+      "name": "license violation",
+      "id": "splunk-license-violation",
+      "severity": "notice",
+      "explanation": "Splunk reported a license policy violation.",
+      "severityRationale": "Notice because the event needs operational review but is not a clean/infected verdict.",
+      "falsePositiveNote": "Evaluation environments and planned license-boundary tests can emit this event.",
+      "examples": { "positive": "search rejected: license violation", "negative": "license compliance check passed" },
+      "match": { "string": "license violation" }
+    }
+  ]
+}

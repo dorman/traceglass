@@ -1,0 +1,178 @@
+/* @polsia:user-owned — your custom global CSS: keyframes, animation classes, one-off global
+ * styles, and @import your own .css files. Prefer tw-animate-css for motion (animate-in,
+ * fade-in, slide-in-from-bottom-N, duration-*). globals.css is framework-owned — edit HERE. */
+
+:root {
+  --site-primary: #55a77c;
+  --site-accent: #86a58f;
+  --site-background: #090d0b;
+  --site-surface: #141b17;
+  --site-text: #e7eee9;
+  --site-muted-text: #9aa79e;
+  --site-border: #2b3930;
+}
+
+html[data-site-design="active"] .dark {
+  --background: var(--site-background);
+  --foreground: var(--site-text);
+  --card: var(--site-surface);
+  --card-foreground: var(--site-text);
+  --popover: var(--site-surface);
+  --popover-foreground: var(--site-text);
+  --primary: var(--site-primary);
+  --primary-foreground: var(--site-background);
+  --secondary: var(--site-surface);
+  --secondary-foreground: var(--site-text);
+  --muted: var(--site-surface);
+  --muted-foreground: var(--site-muted-text);
+  --accent: var(--site-accent);
+  --accent-foreground: var(--site-background);
+  --border: var(--site-border);
+  --input: var(--site-border);
+  --ring: var(--site-primary);
+}
+
+.site-design-nav {
+  background-color: color-mix(in srgb, var(--site-background) 95%, transparent);
+  border-color: var(--site-border);
+  color: var(--site-text);
+}
+
+.site-design-nav .site-design-nav-link {
+  color: var(--site-muted-text);
+}
+
+.site-design-nav .site-design-nav-link:hover,
+.site-design-nav .site-design-nav-link[aria-current="page"] {
+  background-color: var(--site-surface);
+  color: var(--site-primary);
+}
+
+.site-design-menu {
+  background-color: var(--site-surface);
+  border-color: var(--site-border);
+  color: var(--site-text);
+}
+
+.site-design-menu [role="menuitem"]:focus,
+.site-design-menu [data-highlighted] {
+  background-color: color-mix(in srgb, var(--site-primary) 18%, var(--site-surface));
+  color: var(--site-text);
+}
+
+.site-design-nav .site-design-action,
+.site-design-button {
+  background-color: var(--site-primary);
+  border-color: var(--site-primary);
+  color: var(--site-background);
+}
+
+.site-design-nav .site-design-action:hover,
+.site-design-button:hover {
+  background-color: var(--site-accent);
+  border-color: var(--site-accent);
+  color: var(--site-background);
+}
+
+.site-design-footer {
+  background-color: var(--site-background);
+  border-color: var(--site-border);
+  color: var(--site-text);
+}
+
+.site-design-footer a {
+  color: var(--site-muted-text);
+}
+
+.site-design-footer a:hover {
+  color: var(--site-primary);
+}
+
+.site-design-card {
+  border-color: var(--site-border);
+  border-radius: var(--radius);
+}
+
+html[data-site-design="active"] .site-design-page .text-eyebrow,
+html[data-site-design="active"] .site-design-page [class*="text-brand-"] {
+  color: var(--site-accent);
+}
+
+html[data-site-design="active"] .site-design-page ::selection {
+  background-color: var(--site-accent);
+  color: var(--site-background);
+}
+
+html[data-site-card-treatment="terminal"] .site-design-card,
+.site-design-preview[data-site-card-treatment="terminal"] .site-design-card {
+  background-color: color-mix(in srgb, var(--site-surface) 92%, var(--site-background));
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--site-background) 55%, transparent);
+}
+
+html[data-site-card-treatment="outlined"] .site-design-card,
+.site-design-preview[data-site-card-treatment="outlined"] .site-design-card {
+  background-color: transparent;
+  border-width: 2px;
+  box-shadow: none;
+}
+
+html[data-site-card-treatment="soft"] .site-design-card,
+.site-design-preview[data-site-card-treatment="soft"] .site-design-card {
+  background-color: color-mix(in srgb, var(--site-surface) 78%, var(--site-accent));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--site-background) 28%, transparent);
+}
+
+html[data-site-button-treatment="outlined"] .site-design-button {
+  background-color: transparent;
+  color: var(--site-primary);
+}
+
+html[data-site-button-treatment="outlined"] .site-design-button:hover {
+  background-color: var(--site-primary);
+  color: var(--site-background);
+}
+
+html[data-site-button-treatment="outlined"] .site-design-nav .site-design-action {
+  background-color: transparent;
+  color: var(--site-primary);
+}
+
+html[data-site-button-treatment="outlined"] .site-design-nav .site-design-action:hover {
+  background-color: var(--site-primary);
+  color: var(--site-background);
+}
+
+html[data-site-button-treatment="soft"] .site-design-button {
+  border-radius: calc(var(--radius) + 0.35rem);
+}
+
+html[data-site-button-treatment="soft"] .site-design-nav .site-design-action {
+  border-radius: calc(var(--radius) + 0.35rem);
+}
+
+.site-design-preview[data-site-button-treatment="outlined"] .site-design-button {
+  background-color: transparent;
+  color: var(--site-primary);
+}
+
+.site-design-preview[data-site-button-treatment="outlined"] .site-design-button:hover {
+  background-color: var(--site-primary);
+  color: var(--site-background);
+}
+
+.site-design-preview[data-site-button-treatment="outlined"] .site-design-nav .site-design-action {
+  background-color: transparent;
+  color: var(--site-primary);
+}
+
+.site-design-preview[data-site-button-treatment="outlined"]
+  .site-design-nav
+  .site-design-action:hover {
+  background-color: var(--site-primary);
+  color: var(--site-background);
+}
+
+.site-design-preview[data-site-button-treatment="soft"] .site-design-button,
+.site-design-preview[data-site-button-treatment="soft"] .site-design-nav .site-design-action {
+  border-radius: calc(var(--radius) + 0.35rem);
+}

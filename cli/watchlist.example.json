@@ -1,0 +1,5 @@
+{
+  "critical": ["FATAL", "ERROR", "panic", "OOM", "OutOfMemory", "kernel panic"],
+  "warning": ["WARN", "WARNING"],
+  "notice": ["INFO", "ready", "healthy", "started"]
+}

@@ -1,0 +1,58 @@
+{
+  "version": "v0.1.0",
+  "set": "docker-container-crashes",
+  "title": "Docker / container runtime crash signals",
+  "description": "Patterns surfacing container exit codes, OOM kills, runtime exec failures, and panic traces — both from container logs and from docker / containerd / runc output.",
+  "patterns": [
+    {
+      "name": "non-zero exit code",
+      "id": "docker-container-non-zero-exit",
+      "severity": "critical",
+      "explanation": "The container process exited with a non-zero status, so the workload did not complete normally.",
+      "severityRationale": "Critical because the container workload failed and may be unavailable or repeatedly restarting.",
+      "falsePositiveNote": "Expected command failures and intentionally failing test containers can emit this line.",
+      "examples": { "positive": "container exited with non-zero code 137", "negative": "container exited with code 0" },
+      "match": { "regex": "container exited with non-zero code", "flags": "i" }
+    },
+    {
+      "name": "oom (out of memory)",
+      "id": "docker-container-out-of-memory",
+      "severity": "critical",
+      "explanation": "The runtime reports that a container or process exceeded its memory budget.",
+      "severityRationale": "Critical because memory pressure terminated work and can cascade across a node.",
+      "falsePositiveNote": "A deliberately memory-limited benchmark or expected batch peak can cause this signal.",
+      "examples": { "positive": "container killed: OutOfMemory", "negative": "container memory limit configured" },
+      "match": { "string": "OutOfMemory" }
+    },
+    {
+      "name": "oci runtime exec failed",
+      "id": "docker-container-oci-exec-failed",
+      "severity": "critical",
+      "explanation": "The OCI runtime could not execute a command inside the container.",
+      "severityRationale": "Critical because runtime execution failed at the container boundary and blocks the requested workload.",
+      "falsePositiveNote": "A removed executable, bad image, or a test of failure handling can produce the same message.",
+      "examples": { "positive": "OCI runtime exec failed: exec failed", "negative": "OCI runtime exec succeeded" },
+      "match": { "regex": "OCI runtime exec failed", "flags": "i" }
+    },
+    {
+      "name": "go panic stack",
+      "id": "docker-container-go-panic",
+      "severity": "critical",
+      "explanation": "A Go process emitted a panic marker, which normally precedes an unrecovered stack trace.",
+      "severityRationale": "Critical because an unrecovered panic usually terminates the process serving the container.",
+      "falsePositiveNote": "A captured panic in a test or deliberately recovered diagnostic can be benign.",
+      "examples": { "positive": "panic: runtime error: index out of range", "negative": "panic recovery completed" },
+      "match": { "string": "panic:" }
+    },
+    {
+      "name": "container restarting",
+      "id": "docker-container-restarting",
+      "severity": "notice",
+      "explanation": "The container runtime reports a restart, which may be part of recovery or a loop.",
+      "severityRationale": "Notice because a restart is an operational signal that needs context but is not by itself a failure.",
+      "falsePositiveNote": "Rolling deployments and deliberate restarts commonly produce this message.",
+      "examples": { "positive": "Restarting container api", "negative": "container remains running" },
+      "match": { "string": "Restarting" }
+    }
+  ]
+}

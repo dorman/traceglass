@@ -1,0 +1,49 @@
+{
+  "version": "v0.1.0",
+  "set": "nginx-access-errors",
+  "title": "nginx access / error log signals",
+  "description": "Patterns covering nginx access-log 5xx and error-log entries that map to critical infrastructure issues (upstream failures, permission errors, disconnects).",
+  "patterns": [
+    {
+      "name": "5xx response",
+      "id": "nginx-5xx-response",
+      "severity": "warning",
+      "explanation": "An HTTP 5xx response was logged, indicating a server-side request failure.",
+      "severityRationale": "Warning because the request failed, but the broad status-code match does not identify the root cause.",
+      "falsePositiveNote": "Intentional error tests, health-check probes, and isolated client requests can return 5xx.",
+      "examples": { "positive": "GET /api 503", "negative": "GET /api 200" },
+      "match": { "regex": "\\b5[0-9]{2}\\b" }
+    },
+    {
+      "name": "upstream connect timeout",
+      "id": "nginx-upstream-connect-timeout",
+      "severity": "critical",
+      "explanation": "nginx could not connect to or receive a timely response from an upstream service.",
+      "severityRationale": "Critical because the edge path cannot reliably serve requests from its backend.",
+      "falsePositiveNote": "Deploy drains, overloaded test backends, and planned maintenance can create transient timeouts.",
+      "examples": { "positive": "upstream timed out while reading response header", "negative": "upstream responded in 20ms" },
+      "match": { "regex": "upstream\\s+(?:timed\\s+out|connect|read)\\b", "flags": "i" }
+    },
+    {
+      "name": "permission denied",
+      "id": "nginx-permission-denied",
+      "severity": "critical",
+      "explanation": "nginx or its upstream path was denied access to a requested resource.",
+      "severityRationale": "Critical because a permission boundary is blocking the web service from completing its operation.",
+      "falsePositiveNote": "Expected ACLs, sandboxing, and probing a protected path can emit this message.",
+      "examples": { "positive": "open() failed: permission denied", "negative": "open() succeeded" },
+      "match": { "string": "permission denied" }
+    },
+    {
+      "name": "client disconnected prematurely",
+      "id": "nginx-client-disconnected",
+      "severity": "notice",
+      "explanation": "The client closed or disconnected before nginx finished the request.",
+      "severityRationale": "Notice because the request was abandoned, but the server may be healthy.",
+      "falsePositiveNote": "Browsers cancelling navigation, client timeouts, and network churn are common causes.",
+      "examples": { "positive": "client closed connection while waiting", "negative": "client completed response" },
+      "match": { "regex": "client\\s+(?:disconnected|closed\\s+connection)\\b" }
+    }
+  ],
+  "notes": "Order does not matter; severity tie-breaks go to the leftmost pattern. The 5xx regex matches both access and error lines."
+}

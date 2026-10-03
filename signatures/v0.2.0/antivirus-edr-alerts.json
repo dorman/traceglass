@@ -1,0 +1,58 @@
+{
+  "version": "v0.2.0",
+  "set": "antivirus-edr-alerts",
+  "title": "Antivirus and EDR vendor alert signals",
+  "description": "Patterns for malware detections, endpoint isolation and remediation alerts emitted by Microsoft Defender, CrowdStrike, SentinelOne, and compatible antivirus or EDR integrations.",
+  "patterns": [
+    {
+      "name": "generic threat detected",
+      "id": "av-threat-detected",
+      "severity": "critical",
+      "explanation": "An antivirus or endpoint tool reported a generic threat detection.",
+      "severityRationale": "Critical because a security product reported a threat that requires immediate triage.",
+      "falsePositiveNote": "Test samples, simulation modes, and vendor false positives can emit this generic alert.",
+      "examples": { "positive": "Threat detected: sample.exe", "negative": "Threat scan completed" },
+      "match": { "string": "Threat detected" }
+    },
+    {
+      "name": "CrowdStrike detection",
+      "id": "crowdstrike-detection",
+      "severity": "critical",
+      "explanation": "CrowdStrike reported a detection, prevention, or blocked action.",
+      "severityRationale": "Critical because an endpoint security control identified or stopped suspicious activity.",
+      "falsePositiveNote": "Detection test artifacts and benign software blocked by policy can match this pattern.",
+      "examples": { "positive": "CrowdStrike detection blocked execution", "negative": "CrowdStrike policy check completed" },
+      "match": { "regex": "CrowdStrike[^\\n]*(?:detection|prevented|blocked)", "flags": "i" }
+    },
+    {
+      "name": "SentinelOne incident",
+      "id": "sentinelone-incident",
+      "severity": "warning",
+      "explanation": "SentinelOne reported a threat, incident, or mitigation event.",
+      "severityRationale": "Warning because the vendor raised an incident, while the line does not establish impact by itself.",
+      "falsePositiveNote": "Simulated incidents and vendor classification changes can produce this event.",
+      "examples": { "positive": "SentinelOne incident mitigated", "negative": "SentinelOne agent healthy" },
+      "match": { "regex": "SentinelOne[^\\n]*(?:threat|incident|mitigated)", "flags": "i" }
+    },
+    {
+      "name": "Defender remediation",
+      "id": "defender-remediation",
+      "severity": "warning",
+      "explanation": "Microsoft Defender reports that it quarantined or remediated an item.",
+      "severityRationale": "Warning because a security action occurred and the operator should verify what was changed.",
+      "falsePositiveNote": "Routine PUA cleanup and approved remediation tests can create the same line.",
+      "examples": { "positive": "Microsoft Defender quarantined file.exe", "negative": "Microsoft Defender scan completed" },
+      "match": { "regex": "Microsoft Defender[^\\n]*(?:quarantined|remediated)", "flags": "i" }
+    },
+    {
+      "name": "antivirus signatures updated",
+      "id": "av-signatures-updated",
+      "severity": "notice",
+      "explanation": "The antivirus definition set was updated successfully.",
+      "severityRationale": "Notice because this is a useful operational event, not an error or threat verdict.",
+      "falsePositiveNote": "Repeated scheduled updates are expected and may be noisy in routine endpoint logs.",
+      "examples": { "positive": "Antivirus signatures updated", "negative": "Antivirus signatures stale" },
+      "match": { "string": "Antivirus signatures updated" }
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+timestamp,source,message
+2026-09-17T10:00:00Z,splunk,search peer unavailable
+2026-09-17T10:00:01Z,postgres,FATAL: password authentication failed for user app

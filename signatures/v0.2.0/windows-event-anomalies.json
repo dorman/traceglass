@@ -1,0 +1,48 @@
+{
+  "version": "v0.2.0",
+  "set": "windows-event-anomalies",
+  "title": "Windows Event log anomaly signals",
+  "description": "Patterns for failed logons, audit-log clearing, unexpected service changes, and system-clock changes in Windows Event logs.",
+  "patterns": [
+    {
+      "name": "failed logon event",
+      "id": "windows-failed-logon",
+      "severity": "critical",
+      "explanation": "Windows Event ID 4625 records a failed logon attempt.",
+      "severityRationale": "Critical because repeated or unexpected failed logons can indicate account abuse or access trouble.",
+      "falsePositiveNote": "Typoed passwords, service credentials, and expected authentication retries are common causes.",
+      "examples": { "positive": "Security EventID=4625 failed logon", "negative": "Security EventID=4624 successful logon" },
+      "match": { "regex": "(?:Event\\s*ID|EventID)[=: ]*4625\\b", "flags": "i" }
+    },
+    {
+      "name": "audit log cleared",
+      "id": "windows-audit-log-cleared",
+      "severity": "critical",
+      "explanation": "Windows Event ID 1102 reports that the security audit log was cleared.",
+      "severityRationale": "Critical because clearing an audit trail can remove evidence and requires immediate context.",
+      "falsePositiveNote": "Approved retention maintenance and lab reset procedures can intentionally clear logs.",
+      "examples": { "positive": "Event ID: 1102 audit log cleared", "negative": "Event ID: 1101 event log backup" },
+      "match": { "regex": "(?:Event\\s*ID|EventID)[=: ]*1102\\b", "flags": "i" }
+    },
+    {
+      "name": "unexpected service installation",
+      "id": "windows-service-installed",
+      "severity": "warning",
+      "explanation": "Windows Event ID 7045 reports that a service was installed.",
+      "severityRationale": "Warning because new services change execution persistence, but the line alone does not establish intent.",
+      "falsePositiveNote": "Software installs, patching, and approved agents routinely create services.",
+      "examples": { "positive": "System Event ID: 7045 service installed", "negative": "System Event ID: 7036 service running" },
+      "match": { "regex": "(?:Event\\s*ID|EventID)[=: ]*7045\\b", "flags": "i" }
+    },
+    {
+      "name": "system time changed",
+      "id": "windows-system-time-changed",
+      "severity": "notice",
+      "explanation": "Windows reported that the system clock changed.",
+      "severityRationale": "Notice because time changes affect log ordering and may be entirely administrative.",
+      "falsePositiveNote": "NTP corrections, daylight-saving transitions, and VM resume events are common causes.",
+      "examples": { "positive": "The system time has changed", "negative": "The system time is unchanged" },
+      "match": { "string": "The system time has changed" }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "version": "v0.1.0",
+  "set": "schema-example",
+  "title": "Format spec (non-loading) — keep for human readers only",
+  "description": "Human-readable crib showing the exact shape of a signature manifest. The Polsia loader validates manifests against the zod contract in src/lib/contracts/signatures.ts; this file is NOT consumed by code. The Rust CLI may mirror this crib in its own loader without depending on the contract. Trusted shipped patterns add stable id, explanation, severityRationale, falsePositiveNote, and examples with positive and negative strings. Legacy external manifests may omit that quality block and are never labelled builtin. Top-level keys: version + set + title + description + patterns[]. Each pattern has name + severity + match. severity is one of: critical | warning | notice | debug. match is either { string, flags? } or { regex, flags? }. flags is a closed set in v0.1.0: '' (case-sensitive) or 'i' (case-insensitive); the default is 'i' for regex matches. set must be kebab-case starting lowercase, 1-63 chars [a-z0-9-]. version must look like vMAJOR.MINOR.PATCH (e.g. v0.1.0).",
+  "patterns": [
+    {
+      "name": "example critical (string)",
+      "id": "example-critical",
+      "severity": "critical",
+      "explanation": "An example critical literal match.",
+      "severityRationale": "Critical is reserved for a direct high-impact operational signal.",
+      "falsePositiveNote": "The example may be emitted by a test fixture.",
+      "examples": { "positive": "FATAL example", "negative": "INFO example" },
+      "match": { "string": "FATAL", "flags": "i" }
+    },
+    {
+      "name": "example warning (regex)",
+      "id": "example-warning",
+      "severity": "warning",
+      "explanation": "An example warning regex match.",
+      "severityRationale": "Warning indicates review is warranted without asserting a verdict.",
+      "falsePositiveNote": "A test timeout can be an expected fixture.",
+      "examples": { "positive": "request timeout", "negative": "request completed" },
+      "match": { "regex": "timeout\\b", "flags": "i" }
+    },
+    {
+      "name": "example notice (case-sensitive)",
+      "id": "example-notice",
+      "severity": "notice",
+      "explanation": "An example case-sensitive notice match.",
+      "severityRationale": "Notice records context for operators without implying failure.",
+      "falsePositiveNote": "Startup logs can contain the same word during normal operation.",
+      "examples": { "positive": "Started service", "negative": "started service" },
+      "match": { "regex": "Started\\b", "flags": "" }
+    }
+  ],
+  "notes": "This is the schema crib — its set id is reserved as 'schema-example' so it is never confused with a real manifest. Consumer code should not load this file."
+}

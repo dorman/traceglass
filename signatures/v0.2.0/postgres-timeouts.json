@@ -1,0 +1,58 @@
+{
+  "version": "v0.1.0",
+  "set": "postgres-timeouts",
+  "title": "PostgreSQL timeout / connection-pressure signals",
+  "description": "Patterns identifying PostgreSQL statement timeouts, connection timeouts, pool exhaustion, and deadlocks — all visible in postgres / pgbouncer / app logs.",
+  "patterns": [
+    {
+      "name": "statement_timeout triggered",
+      "id": "postgres-statement-timeout",
+      "severity": "warning",
+      "explanation": "PostgreSQL cancelled a statement because it exceeded the configured execution limit.",
+      "severityRationale": "Warning because the query failed, while the database may remain available to other work.",
+      "falsePositiveNote": "Known slow reports and deliberately bounded queries can hit an intentional timeout.",
+      "examples": { "positive": "ERROR statement_timeout on report query", "negative": "statement completed before timeout" },
+      "match": { "string": "statement_timeout" }
+    },
+    {
+      "name": "connection timeout",
+      "id": "postgres-connection-timeout",
+      "severity": "critical",
+      "explanation": "A client or pool could not establish a PostgreSQL connection in time.",
+      "severityRationale": "Critical because connection failure can prevent the application from reaching its primary datastore.",
+      "falsePositiveNote": "Failover drills, cold starts, and temporary pool saturation can cause transient timeouts.",
+      "examples": { "positive": "connection timeout while contacting postgres", "negative": "connection established" },
+      "match": { "regex": "connection\\s+timeout\\b", "flags": "i" }
+    },
+    {
+      "name": "too many connections",
+      "id": "postgres-too-many-connections",
+      "severity": "critical",
+      "explanation": "PostgreSQL refused a connection because the configured connection limit was exhausted.",
+      "severityRationale": "Critical because new application work cannot reach the database until capacity is restored.",
+      "falsePositiveNote": "Load tests and planned connection-limit exercises can intentionally trigger this condition.",
+      "examples": { "positive": "FATAL: too many connections for role app", "negative": "FATAL: connection accepted" },
+      "match": { "regex": "FATAL:\\s+too many connections\\b", "flags": "i" }
+    },
+    {
+      "name": "deadlock detected",
+      "id": "postgres-deadlock",
+      "severity": "critical",
+      "explanation": "PostgreSQL detected a transaction deadlock and aborted work to break the cycle.",
+      "severityRationale": "Critical because concurrent writes are conflicting and at least one transaction was terminated.",
+      "falsePositiveNote": "Expected high-contention workflows may occasionally deadlock and rely on retry logic.",
+      "examples": { "positive": "ERROR deadlock detected", "negative": "transaction committed without deadlock" },
+      "match": { "regex": "deadlock\\s+detected\\b", "flags": "i" }
+    },
+    {
+      "name": "canceling statement due to lock timeout",
+      "id": "postgres-lock-timeout",
+      "severity": "warning",
+      "explanation": "PostgreSQL cancelled a statement after it waited too long for a lock.",
+      "severityRationale": "Warning because one operation failed while the database can continue serving other work.",
+      "falsePositiveNote": "Short lock budgets in normal concurrency control can create expected cancellations.",
+      "examples": { "positive": "canceling statement due to lock timeout", "negative": "lock acquired before timeout" },
+      "match": { "regex": "canceling statement due to lock timeout", "flags": "i" }
+    }
+  ]
+}
