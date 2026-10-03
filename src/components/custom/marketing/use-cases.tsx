@@ -11,7 +11,7 @@ const useCases = [
     description:
       'Pipe a CSV export and let TraceGlass flag every INFO that says "ready", against the FATALs you actually worried about.',
     title: 'splunk-export.log',
-    prompt: '$ loglens --watchlist loglens.toml < splunk-export.log',
+    prompt: '$ traceglass --watchlist traceglass.toml < splunk-export.log',
     lines: [
       { tone: 'muted', text: 'host=web-01  level=' },
       { tone: 'info', text: 'INFO' },
@@ -27,7 +27,7 @@ const useCases = [
     description:
       'L2 reading noisy compose logs at midnight — the FATAL line in red is the only thing that matters, and now it has a count.',
     title: 'docker-compose.log',
-    prompt: '$ docker compose logs -t | loglens',
+    prompt: '$ docker compose logs -t | traceglass',
     lines: [
       { tone: 'muted', text: 'api-gateway-1   | ' },
       { tone: 'info', text: 'INFO' },
@@ -46,7 +46,7 @@ const useCases = [
     description:
       "A flag the founder's pain point: AV diagnostic.txt files are enormous, and the lines you scan for are three specific strings. Add them as keyword highlights to the local watchlist.",
     title: 'diagnostic.txt',
-    prompt: '$ loglens --watchlist av.toml < diagnostic.txt',
+    prompt: '$ traceglass --watchlist av.toml < diagnostic.txt',
     lines: [
       { tone: 'plain', text: '[2026-07-22 10:14] scan pass 3/5 ' },
       { tone: 'fatal', text: 'FATAL' },
@@ -60,7 +60,7 @@ const useCases = [
     description:
       'Tail a crashing pod, pipe through TraceGlass — the OOMKilled stands out without grep gymnastics, and the exit code surfaces the loop.',
     title: 'pod-logs.txt',
-    prompt: '$ kubectl logs api-x-7f9c | loglens',
+    prompt: '$ kubectl logs api-x-7f9c | traceglass',
     lines: [
       { tone: 'muted', text: 'I0712 14:01:02  kubelet: ' },
       { tone: 'info', text: 'INFO' },
@@ -79,7 +79,7 @@ const useCases = [
     description:
       'Wire TraceGlass into a step that fails the build when panic/segfault appears in the runner output — no fragile regex, no pasted logs.',
     title: 'ci-run.log',
-    prompt: '$ loglens --watchlist ci.toml < runner.log',
+    prompt: '$ traceglass --watchlist ci.toml < runner.log',
     lines: [
       { tone: 'muted', text: 'step:test ' },
       { tone: 'info', text: 'INFO' },

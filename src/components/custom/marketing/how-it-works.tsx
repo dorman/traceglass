@@ -9,7 +9,7 @@ const steps = [
     n: '01',
     title: 'Add to your local watchlist',
     body: 'Press a for a keyword highlight or r for a regex highlight. Enter adds the user-controlled entry to the local watchlist; built-in signatures remain a separate scan catalog.',
-    prompt: '$ cat loglens.toml',
+    prompt: '$ cat traceglass.toml',
     code: (
       <code className="block">
         <span className="block text-zinc-500">{'{'}</span>
@@ -33,7 +33,7 @@ const steps = [
     n: '02',
     title: 'Pipe in your logs',
     body: 'Anything that already produces logs works — tail, journalctl, docker logs, kubectl, a CSV export, a file path.',
-    prompt: '$ kubectl logs api-x | loglens --watchlist loglens.toml',
+    prompt: '$ kubectl logs api-x | traceglass --watchlist traceglass.toml',
     code: (
       <code className="block">
         <span className="block whitespace-pre">
@@ -102,7 +102,7 @@ export function HowItWorks() {
                 <CardDescription className="text-sm leading-relaxed">{step.body}</CardDescription>
               </CardHeader>
               <div className="p-3">
-                <Terminal prompt={step.prompt} title="~/.loglens" compact className="text-[11.5px]">
+                <Terminal prompt={step.prompt} title="~/.config/traceglass" compact className="text-[11.5px]">
                   {step.code}
                 </Terminal>
               </div>

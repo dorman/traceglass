@@ -35,7 +35,7 @@ type JsonValue = null | string | number | boolean | JsonValue[] | { [key: string
 
 function renameVisibleBrandText(value: string): string {
   return value
-    .split(/(`[^`]*`|https?:\/\/\S+|~\/\.loglens\S*)/g)
+    .split(/(`[^`]*`|https?:\/\/\S+|~\/\.config\/traceglass\S*|~\/\.loglens\S*)/g)
     .map((part, index) =>
       index % 2 === 1 ? part : part.replace(/\b(loglens|logsift)\b/gi, 'TraceGlass'),
     )

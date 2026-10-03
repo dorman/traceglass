@@ -1,4 +1,4 @@
-// @polsia:user-owned — public read-only install catalog for the loglens CLI.
+// @polsia:user-owned — public read-only install catalog for the TraceGlass CLI.
 import 'server-only';
 
 import { NextResponse } from 'next/server';

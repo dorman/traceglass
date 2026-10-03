@@ -1,7 +1,7 @@
-# loglens
+# TraceGlass
 
-This repository contains the loglens marketing app and the canonical Rust CLI
-source in [`loglens/`](./loglens/). loglens is a local-first terminal tool for
+This repository contains the TraceGlass marketing app and the canonical Rust CLI
+source in [`traceglass/`](./traceglass/). TraceGlass is a local-first terminal tool for
 opening diagnostic logs, finding severity-ranked signals, and reviewing the
 source evidence without uploading log content. Keyword and regex highlights
 are user-controlled entries in a local watchlist; curated built-in signatures
@@ -10,14 +10,14 @@ access, and no candidate suggestions are currently generated.
 
 ## CLI install
 
-The primary beta path is the LogSift one-click installer. It is planned for
+The primary beta path is the TraceGlass one-click installer. It is planned for
 Linux glibc x86_64, macOS Apple silicon, macOS Intel, and Windows x86_64. The
 installer is not advertised as available until the matching native installer,
 CLI archive, signed Ed25519 manifest, detached signatures, and SHA-256 data are
 published together in a GitHub Release.
 
 When published, download the installer for the exact target from
-[GitHub Releases](https://github.com/dorman/loglens/releases), run it locally,
+[GitHub Releases](https://github.com/dorman/traceglass/releases), run it locally,
 and follow its prompts. It verifies the signed manifest, target payload, safe
 archive contents, and extracted executable before any install write. It defaults
 to a current-user location, asks before PATH or shortcut changes, and asks
@@ -32,8 +32,8 @@ Until the beta artifacts are published, the technical fallback is a source
 build with Rust 1.85 or newer:
 
 ```sh
-git clone https://github.com/dorman/loglens.git
-cd loglens
+git clone https://github.com/dorman/traceglass.git
+cd traceglass/traceglass
 cargo install --path . --locked
 ```
 
@@ -42,8 +42,8 @@ cargo install --path . --locked
 Source builds are for contributors who need to change the Rust crate:
 
 ```sh
-git clone https://github.com/dorman/loglens.git
-cd loglens
+git clone https://github.com/dorman/traceglass.git
+cd traceglass/traceglass
 cargo build --locked
 cargo test --locked
 ```
@@ -53,21 +53,21 @@ cargo test --locked
 A regular file path opens the interactive ratatui TUI and scans on open:
 
 ```sh
-loglens agent.log
-loglens ./diagnostic-bundle/
-loglens support-logs.zip
+traceglass agent.log
+traceglass ./diagnostic-bundle/
+traceglass support-logs.zip
 ```
 
 Piped stdin defaults to sanitized raw text. Explicit modes are always
 non-interactive and suitable for scripts:
 
 ```sh
-cat app.log | loglens
-loglens --format raw app.log
-loglens --format json events.ndjson
-loglens --format csv events.csb
-loglens --lens incident-reliability --format json events.ndjson
-cat app.log | loglens --stdin --format json
+cat app.log | traceglass
+traceglass --format raw app.log
+traceglass --format json events.ndjson
+traceglass --format csv events.csb
+traceglass --lens incident-reliability --format json events.ndjson
+cat app.log | traceglass --stdin --format json
 ```
 
 Supported input includes plain text, `.txt`, `.log`, JSON, NDJSON, CSV, `.csb`
@@ -85,10 +85,10 @@ keyword or regex highlight to the local watchlist; built-ins never enter the
 saved file. Findings are evidence for human review, not a security
 determination.
 
-On the first interactive launch, loglens offers an optional four-page
+On the first interactive launch, TraceGlass offers an optional four-page
 walkthrough for opening files and bundles, choosing lenses, searching/filtering,
 and reading/exporting findings. Press `Enter` to start, or `s`/`Esc` to skip.
-The choice is stored locally in the loglens config file; `T` in the viewer or
+The choice is stored locally in the TraceGlass config file; `T` in the viewer or
 help screen, or `--walkthrough`, replays it. Piped stdin, redirected output,
 `--format`, and `--findings` remain non-interactive and never print onboarding.
 
@@ -142,6 +142,6 @@ SKIP_ENV_VALIDATION=1 npm run build
 ```
 
 The CLI fixture and mode matrix is documented in
-[`loglens/tests/README.md`](./loglens/tests/README.md). The CLI's complete
+[`traceglass/tests/README.md`](./traceglass/tests/README.md). The CLI's complete
 usage guide and resource limits are in
-[`loglens/docs/USER_GUIDE.md`](./loglens/docs/USER_GUIDE.md).
+[`traceglass/docs/USER_GUIDE.md`](./traceglass/docs/USER_GUIDE.md).

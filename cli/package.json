@@ -1,7 +1,7 @@
 {
   "name": "logsift",
   "version": "0.1.0",
-  "description": "DEPRECATED: legacy Node artifact kept for the test suite only. The official Rust-native loglens product is distributed through its signed beta installer when published or a source build. This Node script is not published to npm.",
+  "description": "DEPRECATED: legacy Node artifact kept for the test suite only. The official Rust-native TraceGlass product is distributed through its signed beta installer when published or a source build. This Node script is not published to npm.",
   "private": true,
   "type": "module",
   "license": "MIT",
