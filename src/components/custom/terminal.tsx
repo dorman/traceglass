@@ -11,7 +11,7 @@ import type * as React from 'react';
 import { cn } from '@/lib/utils';
 
 export interface TerminalProps {
-  /** The prompt shown on the title bar (e.g. "$ loglens --watchlist …"). */
+  /** The prompt shown on the title bar (e.g. "$ traceglass --watchlist …"). */
   prompt?: string;
   /** Optional short label on the title bar (e.g. "docker-compose.log"). */
   title?: string;
@@ -22,7 +22,7 @@ export interface TerminalProps {
 }
 
 export function Terminal({
-  prompt = '$ loglens --watchlist loglens.toml < docker-compose.log',
+  prompt = '$ traceglass --watchlist traceglass.toml < docker-compose.log',
   title = 'docker-compose.log',
   compact = false,
   className,

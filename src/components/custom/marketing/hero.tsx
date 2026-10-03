@@ -107,7 +107,7 @@ export function Hero() {
             className="absolute -inset-6 -z-10 rounded-3xl bg-gradient-to-tr from-brand-500/15 via-transparent to-transparent blur-2xl dark:from-brand-500/20"
           />
           <Terminal
-            prompt="$ loglens --watchlist loglens.toml < docker-compose.log"
+            prompt="$ traceglass --watchlist traceglass.toml < docker-compose.log"
             title="docker-compose.log"
           >
             <code>

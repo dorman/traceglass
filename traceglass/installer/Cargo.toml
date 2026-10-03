@@ -1,0 +1,29 @@
+[package]
+name = "traceglass-installer"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Verified current-user installer for TraceGlass release artifacts"
+license = "MIT"
+repository = "https://github.com/dorman/traceglass"
+
+[[bin]]
+name = "traceglass-installer"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+base64 = "0.22"
+clap = { version = "4.6", features = ["derive"] }
+ed25519-dalek = "2.1"
+flate2 = "1.1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+sha2 = "0.10"
+tar = "0.4"
+tempfile = "3.23"
+thiserror = "2.0"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"

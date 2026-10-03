@@ -59,7 +59,7 @@ export default async function CheckoutSuccessPage({
             Subscription confirmed{email ? ` for ${email}` : ''}. The curated pack is on the way —
             it stays separate from your editable local watchlist; drop it in{' '}
             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.95em]">
-              ~/.loglens/curated/
+              ~/.config/traceglass/curated/
             </code>{' '}
             and run the CLI as usual.
           </p>

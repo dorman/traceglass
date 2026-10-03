@@ -1,7 +1,7 @@
-# loglens signature library — v0.1.0
+# TraceGlass signature library — v0.1.0
 
 A versioned, **shared**, curated data contract for detection sets. The current
-Rust loglens binary ships its built-in diagnostic signatures in Rust; these
+Rust TraceGlass binary ships its built-in diagnostic signatures in Rust; these
 JSON manifests remain available for the web catalog and future consumers.
 
 The library is **data, not code**: every entry is a hand-authored JSON manifest
