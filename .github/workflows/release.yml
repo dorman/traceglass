@@ -234,15 +234,31 @@ jobs:
           (assets / "traceglass-release.json").write_text(json.dumps(manifest, indent=2) + "\n")
           PY
           # OpenSSL 3 Ed25519 requires -rawin (pure Ed25519 over the message bytes).
-          for artifact in assets/traceglass-*.tar.gz assets/traceglass-*.zip assets/traceglass-installer-*; do
+          # Glob carefully so generated *.sig files are never re-signed or hashed.
+          shopt -s nullglob
+          to_sign=(assets/traceglass-*.tar.gz assets/traceglass-*.zip)
+          for path in assets/traceglass-installer-*; do
+            [[ "$path" == *.sig ]] && continue
+            to_sign+=("$path")
+          done
+          for artifact in "${to_sign[@]}"; do
             openssl pkeyutl -sign -inkey signing-key.pem -rawin -in "$artifact" -out "$artifact.sig"
           done
           openssl pkeyutl -sign -inkey signing-key.pem -rawin -in assets/traceglass-release.json -out assets/traceglass-release.json.sig
-          (cd assets && sha256sum -- *.tar.gz *.zip traceglass-installer-* traceglass-release.json > SHA256SUMS)
+          (
+            cd assets
+            hash_inputs=(*.tar.gz *.zip traceglass-release.json)
+            for path in traceglass-installer-*; do
+              [[ "$path" == *.sig ]] && continue
+              hash_inputs+=("$path")
+            done
+            sha256sum -- "${hash_inputs[@]}" > SHA256SUMS
+          )
           openssl pkeyutl -sign -inkey signing-key.pem -rawin -in assets/SHA256SUMS -out assets/SHA256SUMS.sig
           rm -f signing-key.pem
           test -s assets/traceglass-release.json.sig
           test -s assets/SHA256SUMS.sig
+          test "$(grep -c ' traceglass-installer-' assets/SHA256SUMS || true)" -eq 4
       - name: Publish only after verification gates
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
