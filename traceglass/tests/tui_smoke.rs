@@ -39,8 +39,8 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_BIN_EXE_traceglass")));
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("samples/sample.log");
-    // Keep the temp path short so the export status line is not truncated
-    // before the collision-safe "kept the earlier export" feedback.
+    // Short temp stem; collision note is painted before the path so deep
+    // macOS /var/folders canonicalize() results cannot truncate it away.
     let export_dir = std::env::temp_dir().join(format!(
         "tg-pty-f-{}-{}",
         std::process::id(),

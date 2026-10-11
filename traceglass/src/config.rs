@@ -407,14 +407,16 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let home = std::env::temp_dir().join(format!(
-            "traceglass-legacy-home-{}-{}",
+        // Drive resolution through XDG_CONFIG_HOME so the same fixture works on
+        // Windows (APPDATA) and Unix (HOME/.config) without platform branches.
+        let xdg = std::env::temp_dir().join(format!(
+            "traceglass-legacy-xdg-{}-{}",
             std::process::id(),
             stamp
         ));
-        let legacy = home.join(".config").join("loglens");
-        let modern = home.join(".config").join("traceglass");
-        let _ = fs::remove_dir_all(&home);
+        let legacy = xdg.join("loglens");
+        let modern = xdg.join("traceglass");
+        let _ = fs::remove_dir_all(&xdg);
         fs::create_dir_all(&legacy).unwrap();
         fs::write(
             legacy.join("config"),
@@ -422,7 +424,6 @@ mod tests {
         )
         .unwrap();
 
-        let prev_home = env::var_os("HOME");
         let prev_xdg = env::var_os("XDG_CONFIG_HOME");
         let prev_tg = env::var_os("TRACEGLASS_CONFIG_DIR");
         let prev_ll = env::var_os("LOGLENS_CONFIG_DIR");
@@ -430,8 +431,7 @@ mod tests {
         unsafe {
             env::remove_var("TRACEGLASS_CONFIG_DIR");
             env::remove_var("LOGLENS_CONFIG_DIR");
-            env::remove_var("XDG_CONFIG_HOME");
-            env::set_var("HOME", &home);
+            env::set_var("XDG_CONFIG_HOME", &xdg);
         }
 
         let loaded = load();
@@ -442,12 +442,11 @@ mod tests {
         assert!(modern.join("config").is_file());
 
         unsafe {
-            restore_env("HOME", prev_home);
             restore_env("XDG_CONFIG_HOME", prev_xdg);
             restore_env("TRACEGLASS_CONFIG_DIR", prev_tg);
             restore_env("LOGLENS_CONFIG_DIR", prev_ll);
         }
-        let _ = fs::remove_dir_all(&home);
+        let _ = fs::remove_dir_all(&xdg);
     }
 
     #[test]

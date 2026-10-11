@@ -2381,8 +2381,11 @@ impl App {
                 // process cwd, which is rarely the directory the logs came from.
                 let shown = path.canonicalize().unwrap_or_else(|_| path.clone());
                 self.status = Some(if renamed {
+                    // Put the collision note before the path so a long
+                    // canonicalize() result cannot truncate it off a narrow
+                    // status bar (macOS runners use deep /var/folders temps).
                     format!(
-                        "exported {n} findings → {} (kept the earlier export)",
+                        "exported {n} findings (kept the earlier export) → {}",
                         shown.display()
                     )
                 } else {
