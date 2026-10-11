@@ -126,9 +126,10 @@ fn lens_selection_is_reported_without_changing_raw_output() {
         .expect("run traceglass");
     assert!(output.status.success());
     let records: Vec<Value> = serde_json::from_slice(&output.stdout).expect("JSON records");
+    // `finding: null` still yields Some(Null) from Value::get — skip nulls.
     let finding = records
         .iter()
-        .find_map(|record| record.get("finding"))
+        .find_map(|record| record.get("finding").filter(|value| value.is_object()))
         .expect("fixture finding");
     assert_eq!(finding["lens_id"], "security-signals");
     assert_eq!(finding["lens_version"], "v0.1.0");

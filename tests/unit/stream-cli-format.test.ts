@@ -313,9 +313,7 @@ describe('main() format dispatch', () => {
       process: proc,
     });
     const blob = out.join('');
-    expect(blob.split('\n')[0]).toContain(
-      'file,line,severity,match,type,text,source,signature_id',
-    );
+    expect(blob.split('\n')[0]).toContain('file,line,severity,match,type,text,source,signature_id');
   });
 
   it('exits 2 with stderr message on unknown --format', async () => {
@@ -601,10 +599,21 @@ describe('main() signature library selection', () => {
     const options = baseOptions(out, err, {});
     options.stdin = makeStdin('connection timeout while contacting postgres\n');
     const result = await main(
-      ['--format', 'json', '--lens', 'incident-reliability', '--watchlist', WATCHLIST_PATH, '--signatures', SIGNATURES_PATH],
+      [
+        '--format',
+        'json',
+        '--lens',
+        'incident-reliability',
+        '--watchlist',
+        WATCHLIST_PATH,
+        '--signatures',
+        SIGNATURES_PATH,
+      ],
       options,
     );
-    const records = JSON.parse(out.join('')) as Array<{ signature?: { lens?: Record<string, unknown> } }>;
+    const records = JSON.parse(out.join('')) as Array<{
+      signature?: { lens?: Record<string, unknown> };
+    }>;
     const catalogRecord = records.find((record) => record.signature?.lens);
     expect(result.ok).toBe(true);
     expect(catalogRecord?.signature?.lens).toMatchObject({

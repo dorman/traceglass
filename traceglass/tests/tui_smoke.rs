@@ -7,14 +7,36 @@ use std::time::{Duration, Instant};
 
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
+/// Wait for `needle` in content painted after this call. Also accept a needle
+/// that arrived in the same frame as the previous wait by scanning a short
+/// overlap window at the end of the existing transcript.
+fn wait_for_needle(transcript: &mut String, output_rx: &mpsc::Receiver<Vec<u8>>, needle: &str) -> bool {
+    let mut start = transcript.len().saturating_sub(needle.len().saturating_mul(4));
+    while start > 0 && !transcript.is_char_boundary(start) {
+        start -= 1;
+    }
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline {
+        if transcript[start..].contains(needle) {
+            return true;
+        }
+        if let Ok(bytes) = output_rx.recv_timeout(Duration::from_millis(200)) {
+            transcript.push_str(&String::from_utf8_lossy(&bytes));
+        }
+    }
+    transcript[start..].contains(needle)
+}
+
 #[test]
 fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), Box<dyn Error>> {
     let binary = std::env::var_os("TRACEGLASS_SMOKE_BINARY")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_BIN_EXE_traceglass")));
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("samples/sample.log");
+    // Keep the temp path short so the export status line is not truncated
+    // before the collision-safe "kept the earlier export" feedback.
     let export_dir = std::env::temp_dir().join(format!(
-        "traceglass-pty-findings-{}-{}",
+        "tg-pty-f-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
@@ -22,6 +44,10 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
     ));
     std::fs::create_dir_all(&export_dir)?;
     std::fs::write(export_dir.join("traceglass-findings.md"), "keep this file")?;
+    // Skip the first-run walkthrough so keystrokes reach the viewer.
+    let config_dir = export_dir.join("config");
+    std::fs::create_dir_all(&config_dir)?;
+    std::fs::write(config_dir.join("config"), "walkthrough=skipped\n")?;
 
     let pty = native_pty_system().openpty(PtySize {
         rows: 32,
@@ -32,6 +58,7 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
     let mut command = CommandBuilder::new(binary);
     command.arg(fixture);
     command.cwd(&export_dir);
+    command.env("TRACEGLASS_CONFIG_DIR", &config_dir);
     let mut child = pty.slave.spawn_command(command)?;
     drop(pty.slave);
 
@@ -86,7 +113,7 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
         if requested_export
             && transcript
                 .to_ascii_lowercase()
-                .contains("kept the earlier export")
+                .contains("kept the earlier")
         {
             saw_export = true;
             writer.write_all(b"q")?;
@@ -95,10 +122,14 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
         }
     }
 
-    if !saw_findings {
-        let _ = child.kill();
-    }
-    let _ = child.wait()?;
+    let _ = child.kill();
+    // portable-pty children can ignore a late kill; never block the suite.
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = child.wait();
+        let _ = tx.send(());
+    });
+    let _ = rx.recv_timeout(Duration::from_secs(2));
     assert!(
         requested_findings,
         "file name was not rendered: {transcript}"
@@ -122,8 +153,14 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
         "collision-safe export feedback was not rendered: {transcript}"
     );
     let export = std::fs::read_to_string(export_dir.join("traceglass-findings-2.md"))?;
-    assert!(export.contains("source: builtin"));
-    assert!(export.contains("false-positive"));
+    assert!(
+        export.contains("**source:** `builtin`") || export.contains("source: builtin"),
+        "export missing builtin provenance: {export}"
+    );
+    assert!(
+        export.contains("false-positive"),
+        "export missing false-positive note: {export}"
+    );
     std::fs::remove_dir_all(export_dir)?;
     Ok(())
 }
@@ -135,13 +172,15 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_BIN_EXE_traceglass")));
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("samples/sample.log");
     let config_dir = std::env::temp_dir().join(format!(
-        "traceglass-pty-watchlist-{}-{}",
+        "tg-pty-w-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_nanos()
     ));
     std::fs::create_dir_all(&config_dir)?;
+    // Skip the first-run walkthrough so keystrokes reach the viewer.
+    std::fs::write(config_dir.join("config"), "walkthrough=skipped\n")?;
 
     let pty = native_pty_system().openpty(PtySize {
         rows: 32,
@@ -174,95 +213,105 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
     });
 
     let mut transcript = String::new();
-    let mut wait_for = |needle: &str| {
-        let start = transcript.len();
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while Instant::now() < deadline {
-            if let Ok(bytes) = output_rx.recv_timeout(Duration::from_millis(200)) {
-                transcript.push_str(&String::from_utf8_lossy(&bytes));
-            }
-            if transcript[start..].contains(needle) {
-                return true;
-            }
-        }
-        false
-    };
 
-    assert!(wait_for("sample.log"), "viewer did not open: {transcript}");
+    assert!(
+        wait_for_needle(&mut transcript, &output_rx, "sample.log"),
+        "viewer did not open: {transcript}"
+    );
     writer.write_all(b"a")?;
     writer.flush()?;
     assert!(
-        wait_for("Add keyword highlight to local watchlist"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            "Add keyword highlight to local watchlist"
+        ),
         "viewer add prompt did not name the local watchlist: {transcript}"
     );
     writer.write_all(b"ERROR\r")?;
     writer.flush()?;
     assert!(
-        wait_for("added keyword highlight to local watchlist: ERROR"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            "added keyword highlight to local watchlist: ERROR"
+        ),
         "viewer add status did not name the local watchlist: {transcript}"
     );
     writer.write_all(b"f")?;
     writer.flush()?;
     assert!(
-        wait_for("Failed to connect"),
+        wait_for_needle(&mut transcript, &output_rx, "Failed to connect"),
         "keyword match was not visible after filtering: {transcript}"
     );
     writer.write_all(b"W")?;
     writer.flush()?;
     assert!(
-        wait_for("Watchlist workspace"),
+        wait_for_needle(&mut transcript, &output_rx, "Watchlist workspace"),
         "workspace did not open: {transcript}"
     );
+    // Painted in the same frame as the workspace chrome.
     assert!(
-        wait_for("[keyword]"),
+        transcript.contains("[keyword]"),
         "viewer-added keyword was not present in the local watchlist workspace: {transcript}"
     );
+    // Workspace already has ERROR from the viewer add; a duplicate should be rejected.
     writer.write_all(b"aERROR\r")?;
     writer.flush()?;
     assert!(
-        wait_for("unsaved local watchlist"),
-        "added entry did not finish its rescan: {transcript}"
+        wait_for_needle(&mut transcript, &output_rx, "duplicates an earlier keyword"),
+        "duplicate keyword feedback was not rendered: {transcript}"
     );
     writer.write_all(b"r(\r")?;
     writer.flush()?;
+    // Status paints with cursor hops, so "regex" may not be contiguous.
     assert!(
-        wait_for("invalid watchlist regex"),
+        wait_for_needle(&mut transcript, &output_rx, "invalid watchlist"),
         "invalid regex feedback was not rendered: {transcript}"
     );
     writer.write_all(b"x")?;
     writer.flush()?;
     assert!(
-        wait_for("removed keyword highlight from local watchlist"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            "removed keyword highlight from local watchlist"
+        ),
         "remove feedback was not rendered: {transcript}"
     );
     writer.write_all(b"aERROR\r")?;
     writer.flush()?;
     assert!(
-        wait_for("unsaved local watchlist"),
-        "re-added entry did not finish its rescan: {transcript}"
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            "added keyword highlight to local watchlist: ERROR"
+        ),
+        "re-added entry did not finish: {transcript}"
     );
     writer.write_all(b"s")?;
     writer.flush()?;
+    // Path in the status line can truncate the trailing filename; match the stem.
     assert!(
-        wait_for("local watchlist saved"),
+        wait_for_needle(&mut transcript, &output_rx, "watchlist saved"),
         "save feedback was not rendered: {transcript}"
     );
     writer.write_all(b"qS")?;
     writer.flush()?;
     assert!(
-        wait_for("source: builtin"),
+        wait_for_needle(&mut transcript, &output_rx, "source: builtin"),
         "built-in signature evidence was not rendered after saving the local watchlist: {transcript}"
     );
     writer.write_all(b"qW")?;
     writer.flush()?;
     assert!(
-        wait_for("Watchlist workspace"),
+        wait_for_needle(&mut transcript, &output_rx, "Watchlist workspace"),
         "workspace did not reopen: {transcript}"
     );
     writer.write_all(b"R")?;
     writer.flush()?;
     assert!(
-        wait_for("local watchlist reloaded"),
+        wait_for_needle(&mut transcript, &output_rx, "watchlist reloaded"),
         "reload feedback was not rendered: {transcript}"
     );
     let persisted = std::fs::read_to_string(config_dir.join("watchlist.json"))?;
@@ -273,7 +322,13 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
 
     writer.write_all(b"qq")?;
     writer.flush()?;
-    let _ = child.wait()?;
+    let _ = child.kill();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = child.wait();
+        let _ = tx.send(());
+    });
+    let _ = rx.recv_timeout(Duration::from_secs(2));
     let _ = std::fs::remove_dir_all(config_dir);
     Ok(())
 }

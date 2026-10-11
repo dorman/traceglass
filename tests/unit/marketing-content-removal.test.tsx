@@ -19,7 +19,12 @@ describe('retired TraceGlass pricing content', () => {
       sections: [
         { id: 'hero', kind: 'hero', data: { heading: 'Grammarly, for logs.' }, assets: [] },
         { id: 'pricing', kind: 'pricing', data: { heading: '$12/mo' }, assets: [] },
-        { id: 'legacy-checkout', kind: 'billing-card', data: { price: '$12', heading: 'Subscribe via Stripe' }, assets: [] },
+        {
+          id: 'legacy-checkout',
+          kind: 'billing-card',
+          data: { price: '$12', heading: 'Subscribe via Stripe' },
+          assets: [],
+        },
         { id: 'custom-contact', kind: 'cta', data: { heading: 'Talk to us' }, assets: [] },
       ],
       assets: [],
@@ -54,10 +59,20 @@ describe('retired TraceGlass pricing content', () => {
       sections: [
         { id: 'release-status', kind: 'hero', data: { heading: 'Release status' }, assets: [] },
         { id: 'release-price', kind: 'pricing', data: { heading: '$12/mo' }, assets: [] },
-        { id: 'release-checkout', kind: 'billing-card', data: { price: '$12', heading: 'Subscribe via Stripe' }, assets: [] },
+        {
+          id: 'release-checkout',
+          kind: 'billing-card',
+          data: { price: '$12', heading: 'Subscribe via Stripe' },
+          assets: [],
+        },
         { id: 'release-cta', kind: 'cta', data: { heading: 'Subscribe — $12/mo' }, assets: [] },
         { id: 'custom-cta', kind: 'cta', data: { heading: 'Get launch updates' }, assets: [] },
-        { id: 'waitlist-form', kind: 'waitlist-form', data: { heading: 'Join the list' }, assets: [] },
+        {
+          id: 'waitlist-form',
+          kind: 'waitlist-form',
+          data: { heading: 'Join the list' },
+          assets: [],
+        },
       ],
       assets: [],
     };
@@ -194,7 +209,8 @@ describe('retired TraceGlass pricing content', () => {
     expect(content.sections[0]?.data.heading).toBe(
       'A paid TraceGlass plan is planned, but it isn’t available yet.',
     );
-    expect(content.sections[1]?.data.body).toContain('does not start a subscription');
+    const formData = content.sections[1]?.data as { body?: string };
+    expect(formData.body).toContain('does not start a subscription');
     expect(reconcileGeneratedWaitlistCopy(reconciled).changed).toBe(false);
   });
 });

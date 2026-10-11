@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { MINIMUM_BASELINE_LINES, normalizeLineTemplate, scoreAnomalies } from './anomaly.mjs';
+import { defaultLens, lensPlacement, selectLens } from './lenses.mjs';
 import {
   loadSignatureCatalog,
   loadSignatureDirectory,
@@ -18,7 +19,6 @@ import {
   tryLoadSignatureManifest,
   validateSignatureManifest,
 } from './signatures.mjs';
-import { defaultLens, lensPlacement, selectLens } from './lenses.mjs';
 
 const ANSI = {
   red: '\x1b[31m',
@@ -410,7 +410,13 @@ async function* toLines(input) {
  * dropped before counting, recording, and decoration. An invalid tier
  * name causes run() to throw.
  */
-export async function run({ input, watchlist, file = null, minSeverity = null, lens = defaultLens() }) {
+export async function run({
+  input,
+  watchlist,
+  file = null,
+  minSeverity = null,
+  lens = defaultLens(),
+}) {
   const selectedLens = typeof lens === 'string' ? selectLens(lens) : lens;
   const minRank =
     minSeverity === null || minSeverity === undefined
@@ -488,7 +494,7 @@ export async function run({ input, watchlist, file = null, minSeverity = null, l
         counts[winnerTier] = (counts[winnerTier] ?? 0) + 1;
       }
       for (const h of picked) {
-          records.push(recordForHit(file, i + 1, line, h, selectedLens));
+        records.push(recordForHit(file, i + 1, line, h, selectedLens));
       }
       continue;
     }
@@ -851,7 +857,9 @@ export async function main(argv, options = {}) {
         onWarning: (warning) => stderr.write(`stream-cli: ${warning}\n`),
       });
     } catch (err) {
-      stderr.write(`stream-cli: cannot read signatures directory ${signaturesPath}: ${err.message}\n`);
+      stderr.write(
+        `stream-cli: cannot read signatures directory ${signaturesPath}: ${err.message}\n`,
+      );
       proc.exitCode = 2;
       return { exitCode: 2, ok: false };
     }

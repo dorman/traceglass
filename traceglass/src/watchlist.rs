@@ -219,7 +219,9 @@ struct RawEntry {
 }
 
 fn parse(text: &str, ignore_case: bool) -> Result<Watchlist> {
-    let document: DocumentInput = serde_json::from_str(text).context("malformed watchlist JSON")?;
+    let document: DocumentInput = serde_json::from_str(text).map_err(|error| {
+        anyhow::anyhow!("malformed watchlist JSON: {error}")
+    })?;
     if document.version != VERSION {
         bail!(
             "unsupported watchlist version {} (expected {})",

@@ -38,7 +38,9 @@ function renameVisibleBrandText(value: string): string {
   // Intentional leftovers: protect path-like tokens, then replace historical
   // product names (loglens / logsift) in free text only.
   return value
-    .split(/(`[^`]*`|https?:\/\/\S+|~\/\.config\/traceglass\S*|~\/\.loglens\S*|~\/\.config\/loglens\S*)/g)
+    .split(
+      /(`[^`]*`|https?:\/\/\S+|~\/\.config\/traceglass\S*|~\/\.loglens\S*|~\/\.config\/loglens\S*)/g,
+    )
     .map((part, index) =>
       index % 2 === 1 ? part : part.replace(/\b(loglens|logsift)\b/gi, 'TraceGlass'),
     )

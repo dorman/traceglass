@@ -698,11 +698,16 @@ mod tests {
             assert!(!signature.false_positive_note.trim().is_empty());
             assert_eq!(signature.provenance.source, "builtin");
             assert_eq!(signature.provenance.pattern, signature.id);
-            let (_, positive) = EXPECTED
+            let (positive, _) = EXPECTED
                 .iter()
                 .find(|(_, title)| *title == Some(signature.title))
                 .expect("every signature has a positive fixture");
-            assert!(!ids_matching(positive.expect("positive fixture")).is_empty());
+            assert!(
+                !ids_matching(positive).is_empty(),
+                "positive fixture for {:?} ({}) matched nothing: {positive:?}",
+                signature.title,
+                signature.id
+            );
         }
         assert_eq!(ids.len(), 23);
         for (id, near_miss) in NEAR_MISSES {

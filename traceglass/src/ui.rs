@@ -2247,7 +2247,8 @@ mod tests {
 
         let mut app = App::new(&[], Vec::new(), false).unwrap();
         app.begin_input(InputKind::Keyword);
-        let mut term = Terminal::new(TestBackend::new(80, 10)).unwrap();
+        // Wide enough that the input panel keeps the full prompt (≥50 cells).
+        let mut term = Terminal::new(TestBackend::new(100, 10)).unwrap();
         term.draw(|frame| draw(frame, &mut app)).unwrap();
         let buffer = term.backend().buffer();
         let rendered: String = (0..buffer.area.height)
@@ -2409,8 +2410,9 @@ mod tests {
         let mut app = App::new(&[], Vec::new(), false).unwrap();
         app.show_help = true;
 
-        // Wide enough for two columns, short enough to force scrolling.
-        let wide = 150;
+        // Wide enough for two columns (see help_sheet_uses_two_columns…),
+        // short enough to force scrolling.
+        let wide = 160;
         let first = render_help_with(&mut app, wide, 30);
         assert!(
             first.iter().any(|r| r.contains("Scan & triage")),

@@ -78,16 +78,13 @@ describe('run()', () => {
     expect(result.exitCode).toBe(0);
     expect(result.counts.anomalies).toBe(4);
     expect(result.outputRecords).toHaveLength(4);
-    expect(result.outputRecords.map((record) => ('type' in record ? record.type : 'match'))).toEqual([
-      'anomaly',
-      'anomaly',
-      'anomaly',
-      'anomaly',
-    ]);
+    expect(
+      result.outputRecords.map((record) => ('type' in record ? record.type : 'match')),
+    ).toEqual(['anomaly', 'anomaly', 'anomaly', 'anomaly']);
     expect(result.outputRecords.map((record) => record.line)).toEqual([1, 2, 3, 4]);
-    expect(result.outputRecords.every((record) => 'type' in record && record.type === 'anomaly')).toBe(
-      true,
-    );
+    expect(
+      result.outputRecords.every((record) => 'type' in record && record.type === 'anomaly'),
+    ).toBe(true);
   });
 
   it('counts trailing lines without a final newline', async () => {
