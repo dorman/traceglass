@@ -15,24 +15,29 @@ Standard commands (also documented in `README.md` "Development"):
 - Run: `cargo run -- samples/bundle` (or any file/folder/.zip)
 - Install smoke: `cargo install --path . --locked && traceglass --version`
 - Release: hold tagging until after merge + thorough testing. When ready, tag
-  `v*` on `master` for the signed GitHub Release workflow. The workflow never
-  publishes crates.io; source/Cargo installation remains the technical fallback.
+  `v*` on `main` for the signed GitHub Release workflow (rc tags like
+  `v0.1.0-rc.1` are supported). The workflow never publishes crates.io;
+  source/Cargo installation remains the technical fallback. See `/RELEASING.md`.
 
 ### CI & release
-- **PR/CI** (`.github/workflows/rust.yml`): push/PR to `master`; matrix
+- **PR/CI** (`.github/workflows/rust.yml`): push/PR to `main`; matrix
   `ubuntu-latest` / `macos-latest` / `windows-latest`; steps are
-  `fmt --check`, `clippy -D warnings`, `cargo test`, release build, and
-  (Unix only) `cargo install --path . --force --locked` + `--version`/`--help`.
+  `fmt --check`, `clippy -D warnings`, `cargo test`, installer tests/clippy,
+  release build, and (Unix only) `cargo install --path . --force --locked` +
+  `--version`/`--help`.
 - **Tagged release** (`.github/workflows/release.yml`): push `v*` (or
-  `workflow_dispatch` with a tag). Builds the four exact target triples,
-  native installers, payload archives, signed Ed25519 manifest, detached
-  signatures, and SHA-256 data. It fails without the external signing secret
-  and does **not** publish to crates.io.
+  `workflow_dispatch` with a tag). Checks `TRACEGLASS_RELEASE_SIGNING_KEY_PEM`
+  early, builds the four target triples (Linux x86_64, macOS arm/Intel,
+  Windows), native installers, signed Ed25519 manifest, detached signatures, and
+  `SHA256SUMS`. Prerelease tags (`-` in the tag) are marked prerelease on
+  GitHub. Does **not** publish to crates.io. OS code signing is not configured.
+- **Installer smoke** (`.github/workflows/installer-smoke.yml`):
+  `workflow_dispatch` with a published tag; verifies signatures and runs the
+  installer on ubuntu, macos-13 (Intel), macos-latest (arm), and windows.
 - **`scripts/install.sh` and `install.ps1`**: local wrappers only. They refuse
   remote-shell piping and launch the already-downloaded native installer; the
   native installer owns verification, current-user install, consent, and TUI
-  launch.
-  Maintainer tag steps live in `docs/USER_GUIDE.md` — do not duplicate them here.
+  launch. Maintainer steps: `/RELEASING.md`.
 
 ### Code map
 Startup wiring (`src/main.rs`): `Cli::parse` → `Theme::dark()` + `rules::build_rules`

@@ -24,9 +24,10 @@ to a current-user location, asks before PATH or shortcut changes, and asks
 before opening a new terminal for the no-argument interactive TUI. It never
 uploads logs, enables telemetry, installs a service, or silently updates.
 
-Windows SmartScreen, macOS Gatekeeper/Developer ID, and notarization status are
-separate from the Ed25519 release signature and are only claimed when those
-publisher credentials are configured.
+Windows SmartScreen, macOS Gatekeeper/Developer ID, and notarization are **not**
+configured yet. Release binaries are unsigned at the OS level; only Ed25519
+manifest signatures and `SHA256SUMS` prove publisher integrity. See
+[`RELEASING.md`](./RELEASING.md) for the signing secret, rc tag, and smoke test.
 
 Until the beta artifacts are published, the technical fallback is a source
 build with Rust 1.85 or newer:
