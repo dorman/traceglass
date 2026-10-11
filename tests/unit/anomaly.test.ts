@@ -3,14 +3,14 @@
 import { describe, expect, it } from 'vitest';
 
 const { MINIMUM_BASELINE_LINES, normalizeLineTemplate, scoreAnomalies } = await import(
-  '../../cli/logsift.mjs'
+  '../../cli/stream.mjs'
 );
 
 describe('local anomaly baseline scoring', () => {
   it('normalizes dynamic values into one deterministic line template', () => {
-    expect(
-      normalizeLineTemplate('INFO 2026-10-02T12:34:56Z request id=123 from 10.0.0.8'),
-    ).toBe('info <timestamp> request id=<number> from <ip>');
+    expect(normalizeLineTemplate('INFO 2026-10-02T12:34:56Z request id=123 from 10.0.0.8')).toBe(
+      'info <timestamp> request id=<number> from <ip>',
+    );
     expect(normalizeLineTemplate('Request 550e8400-e29b-41d4-a716-446655440000')).toBe(
       'request <uuid>',
     );

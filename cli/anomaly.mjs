@@ -1,5 +1,5 @@
 // @polsia:user-owned — deterministic, local-only anomaly evidence for the
-// legacy LogSift Node CLI. This module has no persistence or network surface.
+// legacy Node stream test harness. This module has no persistence or network surface.
 
 export const MINIMUM_BASELINE_LINES = 5;
 

@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 /**
  * Closed set of severities. Aligned with the legacy `TIER_RANK` map in
- * `cli/logsift.mjs`: `critical < warning < notice < debug`. We deliberately
+ * `cli/stream.mjs`: `critical < warning < notice < debug`. We deliberately
  * DO NOT include `info` here — the signature library is a separate catalog
  * and never needs the legacy `info` alias; consumers that already include
  * `info` for watchlist parity can map it locally if they want to.
@@ -195,7 +195,7 @@ function provenanceFor(
   if (trust === 'builtin') {
     return {
       source: 'builtin',
-      catalog: 'logsift-json-manifests',
+      catalog: 'traceglass-json-manifests',
       trust: 'trusted',
       id: pattern.id,
       version: manifest.version,
@@ -221,7 +221,7 @@ function provenanceFor(
 
 /**
  * Compile a single pattern's match rule into a matcher. The default for
- * regex matches is `'i'` so the contract matches legacy loglens behaviour
+ * regex matches is `'i'` so the contract matches legacy TraceGlass behaviour
  * (case-IN-sensitive); string matches follow the same default for parity.
  */
 function compileMatcher(pattern: SignaturePatternT): Omit<CompiledMatcher, 'provenance'> {

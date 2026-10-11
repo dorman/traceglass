@@ -1,0 +1,488 @@
+//! Tiny on-disk preferences for TraceGlass.
+//!
+//! Stored as a simple `key=value` file under the platform config directory
+//! (`$XDG_CONFIG_HOME/traceglass` / `~/.config/traceglass`, or `%APPDATA%\traceglass`
+//! on Windows). Override with `TRACEGLASS_CONFIG_DIR` for tests / special setups.
+//!
+//! Loads also accept the pre-rename `LOGLENS_CONFIG_DIR` override and, when the
+//! TraceGlass config file is absent, fall back to the legacy `loglens` config
+//! directory. Saves always write to the TraceGlass location.
+//!
+//! No TOML/JSON crate — keep the surface small until more settings appear.
+
+use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use crate::walkthrough::Decision as WalkthroughDecision;
+
+const PRODUCT_DIR: &str = "traceglass";
+/// Pre-rename config directory name. Kept only for read fallback / migration.
+const LEGACY_PRODUCT_DIR: &str = "loglens";
+
+/// User preferences that survive across sessions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Config {
+    /// When true, keyword/regex highlights match case-insensitively.
+    pub ignore_case: bool,
+    /// When true, the highlight legend panel is visible.
+    pub show_legend: bool,
+    /// When true, opening a file scans it without waiting for `S`.
+    /// `--no-scan` suppresses the launch scan for one run regardless.
+    pub scan_on_open: bool,
+    /// Last directory opened in the in-TUI file browser (`o`).
+    /// Restored on the next launch when the path still exists.
+    pub browser_cwd: Option<PathBuf>,
+    /// Whether the optional first-run walkthrough has been dismissed or finished.
+    /// An absent key remains `Unseen` for backward compatibility.
+    pub walkthrough: WalkthroughDecision,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            ignore_case: false,
+            // Match the App bootstrap default so a missing key keeps the legend.
+            show_legend: true,
+            // Triage is the reason the tool exists, so the default is on: a
+            // config file written before this key existed still scans on open.
+            scan_on_open: true,
+            browser_cwd: None,
+            walkthrough: WalkthroughDecision::Unseen,
+        }
+    }
+}
+
+/// Resolve the directory that holds `config`. Honours `TRACEGLASS_CONFIG_DIR`
+/// first so unit tests can use a temp folder without touching the real home.
+/// Accepts deprecated `LOGLENS_CONFIG_DIR` only when the TraceGlass override is unset.
+pub fn config_dir() -> Option<PathBuf> {
+    if let Some(dir) = env_dir("TRACEGLASS_CONFIG_DIR") {
+        return Some(dir);
+    }
+    // Intentional migration: pre-rename override still points tests/tools at a dir.
+    if let Some(dir) = env_dir("LOGLENS_CONFIG_DIR") {
+        return Some(dir);
+    }
+    platform_config_dir(PRODUCT_DIR)
+}
+
+/// Legacy on-disk directory used before the TraceGlass rename.
+fn legacy_config_dir() -> Option<PathBuf> {
+    // When either override is set, the caller already chose an exact directory —
+    // do not also probe the system legacy path.
+    if env_dir("TRACEGLASS_CONFIG_DIR").is_some() || env_dir("LOGLENS_CONFIG_DIR").is_some() {
+        return None;
+    }
+    platform_config_dir(LEGACY_PRODUCT_DIR)
+}
+
+fn env_dir(key: &str) -> Option<PathBuf> {
+    env::var(key).ok().and_then(|dir| {
+        if dir.is_empty() {
+            None
+        } else {
+            Some(PathBuf::from(dir))
+        }
+    })
+}
+
+fn platform_config_dir(name: &str) -> Option<PathBuf> {
+    if let Ok(xdg) = env::var("XDG_CONFIG_HOME")
+        && !xdg.is_empty()
+    {
+        return Some(PathBuf::from(xdg).join(name));
+    }
+    #[cfg(windows)]
+    {
+        if let Ok(appdata) = env::var("APPDATA")
+            && !appdata.is_empty()
+        {
+            return Some(PathBuf::from(appdata).join(name));
+        }
+    }
+    env::var_os("HOME").map(|h| PathBuf::from(h).join(".config").join(name))
+}
+
+fn config_path() -> Option<PathBuf> {
+    config_dir().map(|d| d.join("config"))
+}
+
+/// Prefer the TraceGlass path; if that file is missing, try the legacy loglens path.
+pub fn resolve_readable_path(file_name: &str) -> Option<PathBuf> {
+    let primary = config_dir()?.join(file_name);
+    if primary.is_file() {
+        return Some(primary);
+    }
+    let legacy = legacy_config_dir()?.join(file_name);
+    if legacy.is_file() {
+        return Some(legacy);
+    }
+    None
+}
+
+/// Load preferences. Missing file / unreadable path → [`Config::default`].
+/// When only a legacy `loglens` config exists, it is read and best-effort copied
+/// into the TraceGlass config directory so later saves stay on the new path.
+pub fn load() -> Config {
+    let Some(path) = resolve_readable_path("config").or_else(config_path) else {
+        return Config::default();
+    };
+    let Ok(text) = fs::read_to_string(&path) else {
+        return Config::default();
+    };
+    let cfg = parse(&text);
+    maybe_migrate_file(&path, "config");
+    cfg
+}
+
+/// Best-effort copy of a readable legacy file into the TraceGlass config dir.
+pub(crate) fn maybe_migrate_file(source: &Path, file_name: &str) {
+    let Some(dest_dir) = config_dir() else {
+        return;
+    };
+    let dest = dest_dir.join(file_name);
+    if source == dest || dest.exists() {
+        return;
+    }
+    if let Some(legacy_dir) = legacy_config_dir()
+        && source.starts_with(&legacy_dir)
+        && fs::create_dir_all(&dest_dir).is_ok()
+    {
+        let _ = fs::copy(source, dest);
+    }
+}
+
+/// Persist preferences. Best-effort: failures are silent at the call site
+/// (status text reports success/failure when the user toggles).
+pub fn save(cfg: &Config) -> std::io::Result<()> {
+    let dir = config_dir().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "no config directory (set HOME or TRACEGLASS_CONFIG_DIR)",
+        )
+    })?;
+    fs::create_dir_all(&dir)?;
+    let path = dir.join("config");
+    let mut body = format!(
+        "# TraceGlass preferences — edit in the TUI with `,`, or with `i` / `l` / `o`\n\
+         ignore_case={}\n\
+         show_legend={}\n\
+         scan_on_open={}\n\
+         walkthrough={}\n",
+        if cfg.ignore_case { "true" } else { "false" },
+        if cfg.show_legend { "true" } else { "false" },
+        if cfg.scan_on_open { "true" } else { "false" },
+        cfg.walkthrough.as_str()
+    );
+    if let Some(cwd) = &cfg.browser_cwd {
+        // Path may contain '=' — only the first '=' is the separator on load.
+        // A path containing a newline (legal on Unix) would otherwise write extra
+        // `key=value` lines and let a directory name rewrite other preferences,
+        // so such a path is simply not persisted.
+        let text = cwd.display().to_string();
+        if !text.chars().any(|c| c.is_control()) {
+            body.push_str(&format!("browser_cwd={text}\n"));
+        }
+    }
+    fs::write(path, body)
+}
+
+fn parse(text: &str) -> Config {
+    let mut cfg = Config::default();
+    for raw in text.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim();
+        match key {
+            "ignore_case" => cfg.ignore_case = parse_bool(value),
+            "show_legend" => cfg.show_legend = parse_bool(value),
+            "scan_on_open" => cfg.scan_on_open = parse_bool(value),
+            "browser_cwd" => {
+                cfg.browser_cwd = if value.is_empty() {
+                    None
+                } else {
+                    Some(PathBuf::from(value))
+                };
+            }
+            "walkthrough" => {
+                if let Some(decision) = WalkthroughDecision::parse(value) {
+                    cfg.walkthrough = decision;
+                }
+            }
+            _ => {}
+        }
+    }
+    cfg
+}
+
+fn parse_bool(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+/// Serializes every test that overrides `TRACEGLASS_CONFIG_DIR`.
+///
+/// Environment variables are process-global, but `cargo test` runs tests on
+/// parallel threads within one process, so two tests pointing the config
+/// directory at different temp folders will clobber each other. Any test that
+/// mutates the variable — in this module or any other — must hold this lock
+/// for as long as the override is in place.
+#[cfg(test)]
+pub(crate) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_ignore_case_variants() {
+        assert!(parse("ignore_case=true\n").ignore_case);
+        assert!(parse("ignore_case=YES\n").ignore_case);
+        assert!(parse("ignore_case=1\n").ignore_case);
+        assert!(parse("# comment\nignore_case = on\n").ignore_case);
+        assert!(!parse("ignore_case=false\n").ignore_case);
+        assert!(!parse("ignore_case=no\n").ignore_case);
+        assert!(!parse("").ignore_case);
+        assert!(!parse("# only comments\n").ignore_case);
+    }
+
+    #[test]
+    fn parse_show_legend_defaults_true_when_absent() {
+        assert!(parse("").show_legend);
+        assert!(parse("ignore_case=true\n").show_legend);
+        assert!(!parse("show_legend=false\n").show_legend);
+        assert!(!parse("show_legend=0\n").show_legend);
+        assert!(parse("show_legend=yes\n").show_legend);
+    }
+
+    /// A config written before this key existed must keep scanning on open —
+    /// the absent key means "never chose", not "chose off".
+    #[test]
+    fn parse_scan_on_open_defaults_true_when_absent() {
+        assert!(parse("").scan_on_open);
+        assert!(parse("ignore_case=true\nshow_legend=false\n").scan_on_open);
+        assert!(!parse("scan_on_open=false\n").scan_on_open);
+        assert!(!parse("scan_on_open=0\n").scan_on_open);
+        assert!(parse("scan_on_open=on\n").scan_on_open);
+    }
+
+    #[test]
+    fn parse_walkthrough_defaults_unseen_and_accepts_known_states() {
+        assert_eq!(parse("").walkthrough, WalkthroughDecision::Unseen);
+        assert_eq!(
+            parse("walkthrough=skipped\n").walkthrough,
+            WalkthroughDecision::Skipped
+        );
+        assert_eq!(
+            parse("walkthrough=completed\n").walkthrough,
+            WalkthroughDecision::Completed
+        );
+        assert_eq!(
+            parse("walkthrough=unknown\n").walkthrough,
+            WalkthroughDecision::Unseen
+        );
+    }
+
+    #[test]
+    fn parse_browser_cwd() {
+        assert_eq!(parse("").browser_cwd, None);
+        assert_eq!(
+            parse("browser_cwd=/var/log\n").browser_cwd,
+            Some(PathBuf::from("/var/log"))
+        );
+        // Value may contain '=' (split_once keeps the remainder).
+        assert_eq!(
+            parse("browser_cwd=/tmp/a=b\n").browser_cwd,
+            Some(PathBuf::from("/tmp/a=b"))
+        );
+        assert_eq!(parse("browser_cwd=\n").browser_cwd, None);
+    }
+
+    #[test]
+    fn save_skips_browser_cwd_containing_control_characters() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!(
+            "traceglass-config-inject-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        // SAFETY: single-threaded under ENV_LOCK; restored before unlock.
+        unsafe {
+            env::set_var("TRACEGLASS_CONFIG_DIR", &dir);
+        }
+
+        // A directory name with an embedded newline must not be able to inject
+        // another preference line into the config file.
+        save(&Config {
+            ignore_case: false,
+            show_legend: false,
+            scan_on_open: true,
+            browser_cwd: Some(PathBuf::from("/tmp/evil\nignore_case=true")),
+            walkthrough: WalkthroughDecision::Unseen,
+        })
+        .unwrap();
+        let text = fs::read_to_string(dir.join("config")).unwrap();
+        assert!(!text.contains("browser_cwd"));
+        assert!(text.contains("ignore_case=false"));
+        assert_eq!(load().browser_cwd, None);
+        assert!(!load().ignore_case);
+
+        unsafe {
+            env::remove_var("TRACEGLASS_CONFIG_DIR");
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_save_roundtrip_via_env_override() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!(
+            "traceglass-config-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        // SAFETY: single-threaded under ENV_LOCK; restored before unlock.
+        unsafe {
+            env::set_var("TRACEGLASS_CONFIG_DIR", &dir);
+        }
+
+        assert_eq!(load(), Config::default());
+
+        let on = Config {
+            ignore_case: true,
+            show_legend: false,
+            scan_on_open: false,
+            browser_cwd: Some(PathBuf::from("/var/log")),
+            walkthrough: WalkthroughDecision::Skipped,
+        };
+        save(&on).unwrap();
+        assert_eq!(load(), on);
+
+        let off = Config {
+            ignore_case: false,
+            show_legend: true,
+            scan_on_open: true,
+            browser_cwd: None,
+            walkthrough: WalkthroughDecision::Completed,
+        };
+        save(&off).unwrap();
+        assert_eq!(load(), off);
+
+        let text = fs::read_to_string(dir.join("config")).unwrap();
+        assert!(text.contains("ignore_case=false"));
+        assert!(text.contains("show_legend=true"));
+        assert!(text.contains("scan_on_open=true"));
+        assert!(text.contains("walkthrough=completed"));
+        assert!(!text.contains("browser_cwd="));
+        assert!(text.contains('#'));
+
+        unsafe {
+            env::remove_var("TRACEGLASS_CONFIG_DIR");
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_falls_back_to_legacy_loglens_config_and_migrates() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        // Drive resolution through XDG_CONFIG_HOME so the same fixture works on
+        // Windows (APPDATA) and Unix (HOME/.config) without platform branches.
+        let xdg = std::env::temp_dir().join(format!(
+            "traceglass-legacy-xdg-{}-{}",
+            std::process::id(),
+            stamp
+        ));
+        let legacy = xdg.join("loglens");
+        let modern = xdg.join("traceglass");
+        let _ = fs::remove_dir_all(&xdg);
+        fs::create_dir_all(&legacy).unwrap();
+        fs::write(
+            legacy.join("config"),
+            "ignore_case=true\nshow_legend=false\nscan_on_open=false\nwalkthrough=skipped\n",
+        )
+        .unwrap();
+
+        let prev_xdg = env::var_os("XDG_CONFIG_HOME");
+        let prev_tg = env::var_os("TRACEGLASS_CONFIG_DIR");
+        let prev_ll = env::var_os("LOGLENS_CONFIG_DIR");
+        // SAFETY: single-threaded under ENV_LOCK; restored before unlock.
+        unsafe {
+            env::remove_var("TRACEGLASS_CONFIG_DIR");
+            env::remove_var("LOGLENS_CONFIG_DIR");
+            env::set_var("XDG_CONFIG_HOME", &xdg);
+        }
+
+        let loaded = load();
+        assert!(loaded.ignore_case);
+        assert!(!loaded.show_legend);
+        assert!(!loaded.scan_on_open);
+        assert_eq!(loaded.walkthrough, WalkthroughDecision::Skipped);
+        assert!(modern.join("config").is_file());
+
+        unsafe {
+            restore_env("XDG_CONFIG_HOME", prev_xdg);
+            restore_env("TRACEGLASS_CONFIG_DIR", prev_tg);
+            restore_env("LOGLENS_CONFIG_DIR", prev_ll);
+        }
+        let _ = fs::remove_dir_all(&xdg);
+    }
+
+    #[test]
+    fn loglens_config_dir_env_still_honoured() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!(
+            "traceglass-legacy-env-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("config"), "ignore_case=true\n").unwrap();
+        let prev_tg = env::var_os("TRACEGLASS_CONFIG_DIR");
+        let prev_ll = env::var_os("LOGLENS_CONFIG_DIR");
+        unsafe {
+            env::remove_var("TRACEGLASS_CONFIG_DIR");
+            env::set_var("LOGLENS_CONFIG_DIR", &dir);
+        }
+
+        assert!(load().ignore_case);
+        assert_eq!(config_dir().as_deref(), Some(dir.as_path()));
+
+        unsafe {
+            restore_env("TRACEGLASS_CONFIG_DIR", prev_tg);
+            restore_env("LOGLENS_CONFIG_DIR", prev_ll);
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    unsafe fn restore_env(key: &str, value: Option<std::ffi::OsString>) {
+        match value {
+            Some(v) => unsafe { env::set_var(key, v) },
+            None => unsafe { env::remove_var(key) },
+        }
+    }
+}

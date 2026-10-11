@@ -39,7 +39,7 @@ describe('public install catalog', () => {
             ? {
                 ...platform,
                 availability: 'available',
-                downloadUrl: 'https://github.com/dorman/loglens/releases/download/v0.2.0/installer',
+                downloadUrl: 'https://github.com/dorman/traceglass/releases/download/v0.2.0/installer',
               }
             : platform,
         ),

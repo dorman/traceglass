@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { installCatalog } from '@/lib/install-catalog';
 import { brandVisual, siteDescription, siteName } from '@/lib/brand';
+import { installCatalog } from '@/lib/install-catalog';
 import { getDefaultMarketingPageContent } from '@/lib/marketing-page-content';
 import { existingMarketingPages } from '@/lib/marketing-page-registry';
 import { navItems } from '@/lib/nav';
@@ -53,14 +53,7 @@ describe('TraceGlass branding', () => {
     const sections = home.sections.map((section) => section.id);
     const homeCopy = JSON.stringify(home).toLowerCase();
 
-    expect(sections).toEqual([
-      'hero',
-      'features',
-      'use-cases',
-      'workflow',
-      'privacy',
-      'faq',
-    ]);
+    expect(sections).toEqual(['hero', 'features', 'use-cases', 'workflow', 'privacy', 'faq']);
     expect(home.sections[0]?.data.heading).toBe('Grammarly, for logs.');
     expect(homeCopy).not.toContain('pricing');
     expect(homeCopy).not.toContain('$12');

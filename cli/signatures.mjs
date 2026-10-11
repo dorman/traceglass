@@ -1,4 +1,4 @@
-// @polsia:user-owned — filesystem loader for the versioned LogSift signature library.
+// @polsia:user-owned — filesystem loader for the versioned TraceGlass signature library.
 import { readdirSync, readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { z } from 'zod';
@@ -117,7 +117,7 @@ function makeProvenance(manifest, pattern, trust) {
   if (trust === 'builtin') {
     return {
       source: 'builtin',
-      catalog: 'logsift-json-manifests',
+      catalog: 'traceglass-json-manifests',
       trust: 'trusted',
       id: pattern.id,
       version: manifest.version,
