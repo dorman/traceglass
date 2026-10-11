@@ -58,6 +58,8 @@ pub struct NormalizedRecord {
 
 #[derive(Clone, Debug)]
 pub struct NormalizedInput {
+    /// Detected input class; asserted in tests, unused by the machine writers.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub format: InputFormat,
     pub records: Vec<NormalizedRecord>,
     pub warning: Option<String>,

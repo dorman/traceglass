@@ -575,6 +575,9 @@ impl Drop for App {
 }
 
 impl App {
+    /// Convenience constructor used by tests; production startup calls
+    /// [`Self::new_with_lens`] with an explicit lens selection.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn new(inputs: &[String], rules: Vec<Rule>, ignore_case: bool) -> Result<Self> {
         Self::new_with_lens(inputs, rules, ignore_case, Selection::default()?)
     }

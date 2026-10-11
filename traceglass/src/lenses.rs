@@ -269,6 +269,7 @@ impl Selection {
             .expect("validated lens catalog always has a fallback group")
     }
 
+    #[allow(dead_code)] // retained for callers that need the loaded catalog
     pub fn catalog(&self) -> &Catalog {
         &self.catalog
     }

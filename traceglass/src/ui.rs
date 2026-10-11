@@ -2308,7 +2308,7 @@ mod tests {
     #[test]
     fn compact_help_rows_fit_the_painted_width() {
         let app = App::new(&[], Vec::new(), false).unwrap();
-        let lines = help_lines_compact(&HELP_SECTIONS, &app.theme, 40);
+        let lines = help_lines_compact(HELP_SECTIONS, &app.theme, 40);
         assert!(!lines.is_empty());
         assert!(lines.iter().all(|line| line.width() <= 40));
     }

@@ -10,8 +10,14 @@ use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 /// Wait for `needle` in content painted after this call. Also accept a needle
 /// that arrived in the same frame as the previous wait by scanning a short
 /// overlap window at the end of the existing transcript.
-fn wait_for_needle(transcript: &mut String, output_rx: &mpsc::Receiver<Vec<u8>>, needle: &str) -> bool {
-    let mut start = transcript.len().saturating_sub(needle.len().saturating_mul(4));
+fn wait_for_needle(
+    transcript: &mut String,
+    output_rx: &mpsc::Receiver<Vec<u8>>,
+    needle: &str,
+) -> bool {
+    let mut start = transcript
+        .len()
+        .saturating_sub(needle.len().saturating_mul(4));
     while start > 0 && !transcript.is_char_boundary(start) {
         start -= 1;
     }
@@ -110,11 +116,7 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
             requested_export = true;
         }
 
-        if requested_export
-            && transcript
-                .to_ascii_lowercase()
-                .contains("kept the earlier")
-        {
+        if requested_export && transcript.to_ascii_lowercase().contains("kept the earlier") {
             saw_export = true;
             writer.write_all(b"q")?;
             writer.flush()?;
