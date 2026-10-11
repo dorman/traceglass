@@ -7,12 +7,45 @@ use std::time::{Duration, Instant};
 
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
+/// Device Status Report cursor-position query (`CSI 6 n`). ConPTY emits this
+/// and blocks the child until the host replies with `CSI row ; col R`.
+const CURSOR_POSITION_QUERY: &str = "\u{1b}[6n";
+const CURSOR_POSITION_REPLY: &[u8] = b"\x1b[1;1R";
+
+/// Answer outstanding DSR cursor-position queries so Windows ConPTY smokes can
+/// paint. Harmless on Unix PTYs that never emit the query.
+fn answer_cursor_position_queries(
+    transcript: &str,
+    answered: &mut usize,
+    writer: &mut impl Write,
+) -> std::io::Result<()> {
+    let seen = transcript.matches(CURSOR_POSITION_QUERY).count();
+    while *answered < seen {
+        writer.write_all(CURSOR_POSITION_REPLY)?;
+        writer.flush()?;
+        *answered += 1;
+    }
+    Ok(())
+}
+
+fn ingest_pty_output(
+    transcript: &mut String,
+    bytes: &[u8],
+    answered: &mut usize,
+    writer: &mut impl Write,
+) -> std::io::Result<()> {
+    transcript.push_str(&String::from_utf8_lossy(bytes));
+    answer_cursor_position_queries(transcript, answered, writer)
+}
+
 /// Wait for `needle` in content painted after this call. Also accept a needle
 /// that arrived in the same frame as the previous wait by scanning a short
 /// overlap window at the end of the existing transcript.
 fn wait_for_needle(
     transcript: &mut String,
     output_rx: &mpsc::Receiver<Vec<u8>>,
+    writer: &mut impl Write,
+    answered: &mut usize,
     needle: &str,
 ) -> bool {
     let mut start = transcript
@@ -27,7 +60,7 @@ fn wait_for_needle(
             return true;
         }
         if let Ok(bytes) = output_rx.recv_timeout(Duration::from_millis(200)) {
-            transcript.push_str(&String::from_utf8_lossy(&bytes));
+            let _ = ingest_pty_output(transcript, &bytes, answered, writer);
         }
     }
     transcript[start..].contains(needle)
@@ -87,6 +120,7 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
 
     let deadline = Instant::now() + Duration::from_secs(15);
     let mut transcript = String::new();
+    let mut answered_dsr = 0usize;
     let mut requested_findings = false;
     let mut saw_findings = false;
     let mut requested_export = false;
@@ -94,7 +128,7 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
 
     while Instant::now() < deadline {
         if let Ok(bytes) = output_rx.recv_timeout(Duration::from_millis(250)) {
-            transcript.push_str(&String::from_utf8_lossy(&bytes));
+            ingest_pty_output(&mut transcript, &bytes, &mut answered_dsr, &mut writer)?;
         }
 
         if !requested_findings && transcript.contains("sample.log") {
@@ -215,9 +249,16 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
     });
 
     let mut transcript = String::new();
+    let mut answered_dsr = 0usize;
 
     assert!(
-        wait_for_needle(&mut transcript, &output_rx, "sample.log"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "sample.log"
+        ),
         "viewer did not open: {transcript}"
     );
     writer.write_all(b"a")?;
@@ -226,6 +267,8 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
         wait_for_needle(
             &mut transcript,
             &output_rx,
+            &mut writer,
+            &mut answered_dsr,
             "Add keyword highlight to local watchlist"
         ),
         "viewer add prompt did not name the local watchlist: {transcript}"
@@ -236,6 +279,8 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
         wait_for_needle(
             &mut transcript,
             &output_rx,
+            &mut writer,
+            &mut answered_dsr,
             "added keyword highlight to local watchlist: ERROR"
         ),
         "viewer add status did not name the local watchlist: {transcript}"
@@ -243,13 +288,25 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
     writer.write_all(b"f")?;
     writer.flush()?;
     assert!(
-        wait_for_needle(&mut transcript, &output_rx, "Failed to connect"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "Failed to connect"
+        ),
         "keyword match was not visible after filtering: {transcript}"
     );
     writer.write_all(b"W")?;
     writer.flush()?;
     assert!(
-        wait_for_needle(&mut transcript, &output_rx, "Watchlist workspace"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "Watchlist workspace"
+        ),
         "workspace did not open: {transcript}"
     );
     // Painted in the same frame as the workspace chrome.
@@ -261,14 +318,26 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
     writer.write_all(b"aERROR\r")?;
     writer.flush()?;
     assert!(
-        wait_for_needle(&mut transcript, &output_rx, "duplicates an earlier keyword"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "duplicates an earlier keyword"
+        ),
         "duplicate keyword feedback was not rendered: {transcript}"
     );
     writer.write_all(b"r(\r")?;
     writer.flush()?;
     // Status paints with cursor hops, so "regex" may not be contiguous.
     assert!(
-        wait_for_needle(&mut transcript, &output_rx, "invalid watchlist"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "invalid watchlist"
+        ),
         "invalid regex feedback was not rendered: {transcript}"
     );
     writer.write_all(b"x")?;
@@ -277,6 +346,8 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
         wait_for_needle(
             &mut transcript,
             &output_rx,
+            &mut writer,
+            &mut answered_dsr,
             "removed keyword highlight from local watchlist"
         ),
         "remove feedback was not rendered: {transcript}"
@@ -287,6 +358,8 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
         wait_for_needle(
             &mut transcript,
             &output_rx,
+            &mut writer,
+            &mut answered_dsr,
             "added keyword highlight to local watchlist: ERROR"
         ),
         "re-added entry did not finish: {transcript}"
@@ -295,25 +368,49 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
     writer.flush()?;
     // Path in the status line can truncate the trailing filename; match the stem.
     assert!(
-        wait_for_needle(&mut transcript, &output_rx, "watchlist saved"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "watchlist saved"
+        ),
         "save feedback was not rendered: {transcript}"
     );
     writer.write_all(b"qS")?;
     writer.flush()?;
     assert!(
-        wait_for_needle(&mut transcript, &output_rx, "source: builtin"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "source: builtin"
+        ),
         "built-in signature evidence was not rendered after saving the local watchlist: {transcript}"
     );
     writer.write_all(b"qW")?;
     writer.flush()?;
     assert!(
-        wait_for_needle(&mut transcript, &output_rx, "Watchlist workspace"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "Watchlist workspace"
+        ),
         "workspace did not reopen: {transcript}"
     );
     writer.write_all(b"R")?;
     writer.flush()?;
     assert!(
-        wait_for_needle(&mut transcript, &output_rx, "watchlist reloaded"),
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "watchlist reloaded"
+        ),
         "reload feedback was not rendered: {transcript}"
     );
     let persisted = std::fs::read_to_string(config_dir.join("watchlist.json"))?;
