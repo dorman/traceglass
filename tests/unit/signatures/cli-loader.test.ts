@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const { loadSignatureDirectory, loadSignatureManifest, run, validateSignatureManifest } =
-  await import('../../../cli/logsift.mjs');
+  await import('../../../cli/stream.mjs');
 
 const SEED_PATH = fileURLToPath(new URL('../../../signatures/v0.1.0/', import.meta.url));
 const V020_PATH = fileURLToPath(new URL('../../../signatures/v0.2.0/', import.meta.url));
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 function makeTemporaryRoot() {
-  const root = mkdtempSync(join(tmpdir(), 'logsift-signatures-'));
+  const root = mkdtempSync(join(tmpdir(), 'traceglass-signatures-'));
   temporaryRoots.push(root);
   return root;
 }

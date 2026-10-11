@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { MatchRecord, OutputRecord } from '../../cli/logsift.d.mts';
+import type { MatchRecord, OutputRecord } from '../../cli/stream.d.mts';
 
-const { run, parseWatchlist, parseArgs, serialize, main } = await import('../../cli/logsift.mjs');
+const { run, parseWatchlist, parseArgs, serialize, main } = await import('../../cli/stream.mjs');
 
 const WATCHLIST_PATH = fileURLToPath(new URL('../../cli/watchlist.example.json', import.meta.url));
 const SIGNATURES_PATH = fileURLToPath(new URL('../../signatures/v0.1.0/', import.meta.url));
@@ -90,14 +90,14 @@ describe('format selector (parseArgs)', () => {
     expect(args.formatError).toBe('xml');
   });
 
-  it('rejects unknown LOGSIFT_FORMAT env values too', () => {
-    const args = parseArgs([], { LOGSIFT_FORMAT: 'xml' });
+  it('rejects unknown TRACEGLASS_FORMAT env values too', () => {
+    const args = parseArgs([], { TRACEGLASS_FORMAT: 'xml' });
     expect(args.format).toBeNull();
     expect(args.formatError).toBe('xml');
   });
 
-  it('reads LOGSIFT_FORMAT env when no flag is given', () => {
-    const args = parseArgs([], { LOGSIFT_FORMAT: 'csv' });
+  it('reads TRACEGLASS_FORMAT env when no flag is given', () => {
+    const args = parseArgs([], { TRACEGLASS_FORMAT: 'csv' });
     expect(args.format).toBe('csv');
     expect(args.formatError).toBeNull();
   });
@@ -108,7 +108,7 @@ describe('lens selector (parseArgs)', () => {
     expect(parseArgs([], {}).lens).toBe('general-triage');
     expect(parseArgs(['--lens', 'security-signals'], {}).lens).toBe('security-signals');
     expect(parseArgs(['--lens=incident-reliability'], {}).lens).toBe('incident-reliability');
-    expect(parseArgs([], { LOGSIFT_LENS: 'security-signals' }).lens).toBe('security-signals');
+    expect(parseArgs([], { TRACEGLASS_LENS: 'security-signals' }).lens).toBe('security-signals');
   });
 });
 
@@ -497,7 +497,7 @@ describe('main() signature library selection', () => {
     const out: string[] = [];
     const err: string[] = [];
     const options = baseOptions(out, err, {
-      LOGSIFT_SIGNATURES: '/path/that/must/not/be-used',
+      TRACEGLASS_SIGNATURES: '/path/that/must/not/be-used',
     });
     options.stdin = makeStdin(
       'ERROR search peer idx-01 failed to respond\n' +
@@ -564,7 +564,7 @@ describe('main() signature library selection', () => {
       source: 'builtin',
       signature: expect.objectContaining({
         id: 'splunk-search-peer-failure',
-        catalog: 'logsift-json-manifests',
+        catalog: 'traceglass-json-manifests',
         severityRationale: expect.any(String),
         falsePositiveNote: expect.any(String),
       }),
@@ -573,10 +573,10 @@ describe('main() signature library selection', () => {
     expect(err.join('')).toContain('counts: lines=6');
   });
 
-  it('uses LOGSIFT_SIGNATURES when the explicit flag is absent', async () => {
+  it('uses TRACEGLASS_SIGNATURES when the explicit flag is absent', async () => {
     const out: string[] = [];
     const err: string[] = [];
-    const options = baseOptions(out, err, { LOGSIFT_SIGNATURES: SIGNATURES_PATH });
+    const options = baseOptions(out, err, { TRACEGLASS_SIGNATURES: SIGNATURES_PATH });
     options.stdin = makeStdin('statement_timeout\n');
 
     const result = await main(['--format', 'json', '--watchlist', WATCHLIST_PATH], options);

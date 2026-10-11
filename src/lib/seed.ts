@@ -33,9 +33,12 @@ const technicalBrandKeys = new Set([
 
 type JsonValue = null | string | number | boolean | JsonValue[] | { [key: string]: JsonValue };
 
+/** Idempotent DB copy migration: rewrite visible old brand tokens to TraceGlass. */
 function renameVisibleBrandText(value: string): string {
+  // Intentional leftovers: protect path-like tokens, then replace historical
+  // product names (loglens / logsift) in free text only.
   return value
-    .split(/(`[^`]*`|https?:\/\/\S+|~\/\.config\/traceglass\S*|~\/\.loglens\S*)/g)
+    .split(/(`[^`]*`|https?:\/\/\S+|~\/\.config\/traceglass\S*|~\/\.loglens\S*|~\/\.config\/loglens\S*)/g)
     .map((part, index) =>
       index % 2 === 1 ? part : part.replace(/\b(loglens|logsift)\b/gi, 'TraceGlass'),
     )

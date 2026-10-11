@@ -136,7 +136,7 @@ fn known_reference(reference: &LensReference) -> bool {
 }
 
 pub fn validate(catalog: &Catalog) -> Result<()> {
-    if catalog.catalog != "logsift-lenses" || catalog.version != CATALOG_VERSION {
+    if catalog.catalog != "traceglass-lenses" || catalog.version != CATALOG_VERSION {
         bail!(
             "unsupported lens catalog {}/{}",
             catalog.catalog,

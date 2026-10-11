@@ -1,4 +1,4 @@
-// @polsia:user-owned — type declarations for the sibling cli/logsift.mjs.
+// @polsia:user-owned — type declarations for the sibling cli/stream.mjs.
 // Pure ESM Node CLI module; types live alongside so test files can import them.
 export type Severity = 'critical' | 'warning' | 'notice' | 'info' | 'debug';
 

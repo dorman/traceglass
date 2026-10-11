@@ -2,7 +2,7 @@
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 
-const { run, parseWatchlist } = await import('../../cli/logsift.mjs');
+const { run, parseWatchlist } = await import('../../cli/stream.mjs');
 
 const w = { critical: ['FATAL'], info: ['INFO', 'ready'] };
 

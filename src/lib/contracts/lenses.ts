@@ -1,4 +1,4 @@
-// @polsia:user-owned — pure shared contract for deterministic LogSift lenses.
+// @polsia:user-owned — pure shared contract for deterministic TraceGlass lenses.
 import { z } from 'zod';
 
 const Kebab = z.string().regex(/^[a-z][a-z0-9-]{0,62}$/);
@@ -56,7 +56,7 @@ export function validateLensCatalog(
     return { ok: false, error: parsed.error.issues.map((issue) => issue.message).join('; ') };
   }
   const catalog = parsed.data;
-  if (catalog.catalog !== 'logsift-lenses') {
+  if (catalog.catalog !== 'traceglass-lenses') {
     return { ok: false, error: `unsupported lens catalog "${catalog.catalog}"` };
   }
   const lensIds = new Set<string>();

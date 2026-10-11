@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-const { decorate } = await import('../../cli/logsift.mjs');
+const { decorate } = await import('../../cli/stream.mjs');
 
 const NOTICE_HITS = [{ keyword: 'INFO', severity: 'notice', start: 4, length: 4 }];
 const CRITICAL_HITS = [{ keyword: 'FATAL', severity: 'critical', start: 0, length: 5 }];

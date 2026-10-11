@@ -116,7 +116,7 @@ Run the focused checks with:
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test --locked
-npm run test -- tests/unit/signatures tests/unit/logsift-format.test.ts tests/unit/logsift-run.test.ts tests/unit/logsift-watchlist.test.ts
+npm run test -- tests/unit/signatures tests/unit/stream-cli-format.test.ts tests/unit/stream-cli-run.test.ts tests/unit/stream-cli-watchlist.test.ts
 ```
 
 Machine-output tests assert signature ID, source/provenance, rationale, caveat,

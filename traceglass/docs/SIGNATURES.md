@@ -24,7 +24,7 @@ Machine evidence uses the same provenance fields on both catalogs:
 `source`, `catalog`, `version`, `set`, and `pattern`. The Rust source is
 `source=builtin`, `catalog=traceglass-rust-builtins`, `version=builtin-v1`,
 `set=core`. JSON-manifest matches are `source=builtin`,
-`catalog=logsift-json-manifests`, and retain their manifest version and set.
+`catalog=traceglass-json-manifests`, and retain their manifest version and set.
 Entries from a user watchlist are `source=user_watchlist` and carry no
 built-in signature provenance. Legacy external manifests remain usable for
 compatibility but are marked `source=legacy_external`, `trust=legacy`.
@@ -121,7 +121,7 @@ Run the focused suites from the repository root:
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test --locked
-npm run test -- tests/unit/signatures tests/unit/logsift-format.test.ts tests/unit/logsift-run.test.ts tests/unit/logsift-watchlist.test.ts
+npm run test -- tests/unit/signatures tests/unit/stream-cli-format.test.ts tests/unit/stream-cli-run.test.ts tests/unit/stream-cli-watchlist.test.ts
 ```
 
 When adding a reviewed pattern, update its stable metadata and both examples

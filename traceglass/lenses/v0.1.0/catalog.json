@@ -1,5 +1,5 @@
 {
-  "catalog": "logsift-lenses",
+  "catalog": "traceglass-lenses",
   "version": "v0.1.0",
   "title": "TraceGlass deterministic analysis lenses",
   "description": "Versioned review priorities for the reviewed local signature catalogs. Lenses change grouping and ordering only; they never change matching or remove evidence.",

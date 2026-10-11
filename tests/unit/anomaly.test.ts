@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 
 const { MINIMUM_BASELINE_LINES, normalizeLineTemplate, scoreAnomalies } = await import(
-  '../../cli/logsift.mjs'
+  '../../cli/stream.mjs'
 );
 
 describe('local anomaly baseline scoring', () => {

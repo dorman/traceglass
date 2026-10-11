@@ -251,14 +251,19 @@ pub fn path() -> Option<PathBuf> {
 
 /// Load the saved watchlist. A missing file is the normal first-run default;
 /// every other read/parse/validation error is returned to the caller.
+/// Prefers `~/.config/traceglass/watchlist.json`, then falls back to the
+/// pre-rename `loglens` location and best-effort migrates into TraceGlass.
 pub fn load(ignore_case: bool) -> Result<Option<Watchlist>> {
-    let Some(path) = path() else {
+    let Some(path) = config::resolve_readable_path(FILE_NAME).or_else(path) else {
         return Ok(None);
     };
     match fs::read_to_string(&path) {
-        Ok(text) => parse(&text, ignore_case)
-            .map(Some)
-            .with_context(|| format!("could not load watchlist '{}'", path.display())),
+        Ok(text) => {
+            let list = parse(&text, ignore_case)
+                .with_context(|| format!("could not load watchlist '{}'", path.display()))?;
+            config::maybe_migrate_file(&path, FILE_NAME);
+            Ok(Some(list))
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => {
             Err(error).with_context(|| format!("could not read watchlist '{}'", path.display()))

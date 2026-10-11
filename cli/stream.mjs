@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// @polsia:user-owned — cli/logsift.mjs is the legacy LogSift Node CLI kept only
-// for the unit test suite (tests/unit/logsift-*.test.ts). It is NOT the
+// @polsia:user-owned — cli/stream.mjs is a Node stream test harness kept only
+// for the unit test suite (tests/unit/stream-cli-*.test.ts). It is NOT the
 // official install path for the product — the official Rust-native TraceGlass
 // product is distributed through its signed beta installer when published or
 // a source build. Do not publish this artifact
@@ -65,17 +65,17 @@ function rankFor(tier) {
   return TIER_RANK[tier] ?? null;
 }
 
-const HELP_TEXT = `logsift — decorate streamed log lines by watchlist severity
+const HELP_TEXT = `stream-cli — decorate streamed log lines by watchlist severity
 and exit non-zero on the first critical match.
 
 Usage:
-  logsift [flags] [<file>]
-  echo "INFO  starting" | logsift --watchlist ./logsift.json
+  stream-cli [flags] [<file>]
+  echo "INFO  starting" | stream-cli --watchlist ./watchlist.json
 
 Flags:
-  -w, --watchlist <path>    JSON watchlist (default: ./logsift.json).
+  -w, --watchlist <path>    JSON watchlist (default: ./watchlist.json).
       --signatures <dir>    Recursively load versioned signature manifests;
-                            falls back to LOGSIFT_SIGNATURES when absent.
+                            falls back to TRACEGLASS_SIGNATURES when absent.
       --lens <id>           Review lens: general-triage (default), incident-
                             reliability, or security-signals.
   -f, --file <path>         Read input from a file instead of stdin.
@@ -658,7 +658,7 @@ function parseArgs(argv, env = process.env) {
   }
   if (!opts.file && opts.positional) opts.file = opts.positional;
   if (opts.formatRaw === null) {
-    const envVal = env.LOGSIFT_FORMAT;
+    const envVal = env.TRACEGLASS_FORMAT;
     if (envVal && envVal.length > 0) {
       const result = parseFormatValue(envVal);
       if (result.ok) {
@@ -670,7 +670,7 @@ function parseArgs(argv, env = process.env) {
       opts.formatRaw = 'text';
     }
   }
-  if (opts.lens === null) opts.lens = env.LOGSIFT_LENS ?? 'general-triage';
+  if (opts.lens === null) opts.lens = env.TRACEGLASS_LENS ?? 'general-triage';
   return {
     watchlist: opts.watchlist,
     signatures: opts.signatures,
@@ -806,12 +806,12 @@ export async function main(argv, options = {}) {
     return { exitCode: 0, ok: true };
   }
   if (args.formatError !== null && args.format === null) {
-    stderr.write(`logsift: unknown --format value: ${args.formatError}\n`);
+    stderr.write(`stream-cli: unknown --format value: ${args.formatError}\n`);
     proc.exitCode = 2;
     return { exitCode: 2, ok: false };
   }
   if (args.minSeverityError !== null && args.minSeverity === null) {
-    stderr.write(`logsift: unknown --min-severity value: ${args.minSeverityError}\n`);
+    stderr.write(`stream-cli: unknown --min-severity value: ${args.minSeverityError}\n`);
     proc.exitCode = 2;
     return { exitCode: 2, ok: false };
   }
@@ -819,39 +819,39 @@ export async function main(argv, options = {}) {
   try {
     lens = selectLens(options.lens ?? args.lens);
   } catch (err) {
-    stderr.write(`logsift: unknown --lens value: ${err.message}\n`);
+    stderr.write(`stream-cli: unknown --lens value: ${err.message}\n`);
     proc.exitCode = 2;
     return { exitCode: 2, ok: false };
   }
   const watchlistPath =
-    args.watchlist ?? options.watchlistPath ?? env.LOGSIFT_WATCHLIST ?? './logsift.json';
+    args.watchlist ?? options.watchlistPath ?? env.TRACEGLASS_WATCHLIST ?? './watchlist.json';
 
   let watchlistRaw;
   try {
     watchlistRaw = readFileSync(watchlistPath, 'utf-8');
   } catch (err) {
-    stderr.write(`logsift: cannot read watchlist ${watchlistPath}: ${err.message}\n`);
+    stderr.write(`stream-cli: cannot read watchlist ${watchlistPath}: ${err.message}\n`);
     proc.exitCode = 2;
     return { exitCode: 2, ok: false };
   }
   const wl = parseWatchlist(watchlistRaw);
   if (!wl.ok) {
-    stderr.write(`logsift: invalid watchlist ${watchlistPath}: ${wl.error}\n`);
+    stderr.write(`stream-cli: invalid watchlist ${watchlistPath}: ${wl.error}\n`);
     proc.exitCode = 2;
     return { exitCode: 2, ok: false };
   }
 
   const signaturesPath =
-    args.signatures ?? options.signaturesPath ?? env.LOGSIFT_SIGNATURES ?? null;
+    args.signatures ?? options.signaturesPath ?? env.TRACEGLASS_SIGNATURES ?? null;
   let watchlist = wl.value;
   if (signaturesPath) {
     let loadedSignatures;
     try {
       loadedSignatures = loadSignatureDirectory(signaturesPath, {
-        onWarning: (warning) => stderr.write(`logsift: ${warning}\n`),
+        onWarning: (warning) => stderr.write(`stream-cli: ${warning}\n`),
       });
     } catch (err) {
-      stderr.write(`logsift: cannot read signatures directory ${signaturesPath}: ${err.message}\n`);
+      stderr.write(`stream-cli: cannot read signatures directory ${signaturesPath}: ${err.message}\n`);
       proc.exitCode = 2;
       return { exitCode: 2, ok: false };
     }
@@ -863,7 +863,7 @@ export async function main(argv, options = {}) {
     try {
       input = readFileSync(args.file, 'utf-8');
     } catch (err) {
-      stderr.write(`logsift: cannot read input file ${args.file}: ${err.message}\n`);
+      stderr.write(`stream-cli: cannot read input file ${args.file}: ${err.message}\n`);
       proc.exitCode = 2;
       return { exitCode: 2, ok: false };
     }
@@ -901,7 +901,7 @@ export async function main(argv, options = {}) {
   };
 }
 
-// Run when invoked as a script (`node cli/logsift.mjs ...`).
+// Run when invoked as a script (`node cli/stream.mjs ...`).
 const invokedPath = process.argv[1];
 if (invokedPath && pathToFileURL(invokedPath).href === import.meta.url) {
   await main(process.argv.slice(2));

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-const { parseWatchlist } = await import('../../cli/logsift.mjs');
+const { parseWatchlist } = await import('../../cli/stream.mjs');
 
 describe('parseWatchlist()', () => {
   it('returns ok with the parsed shape for a valid watchlist', () => {

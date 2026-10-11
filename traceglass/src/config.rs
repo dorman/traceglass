@@ -1,16 +1,24 @@
-//! Tiny on-disk preferences for traceglass.
+//! Tiny on-disk preferences for TraceGlass.
 //!
 //! Stored as a simple `key=value` file under the platform config directory
 //! (`$XDG_CONFIG_HOME/traceglass` / `~/.config/traceglass`, or `%APPDATA%\traceglass`
 //! on Windows). Override with `TRACEGLASS_CONFIG_DIR` for tests / special setups.
 //!
+//! Loads also accept the pre-rename `LOGLENS_CONFIG_DIR` override and, when the
+//! TraceGlass config file is absent, fall back to the legacy `loglens` config
+//! directory. Saves always write to the TraceGlass location.
+//!
 //! No TOML/JSON crate — keep the surface small until more settings appear.
 
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::walkthrough::Decision as WalkthroughDecision;
+
+const PRODUCT_DIR: &str = "traceglass";
+/// Pre-rename config directory name. Kept only for read fallback / migration.
+const LEGACY_PRODUCT_DIR: &str = "loglens";
 
 /// User preferences that survive across sessions.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,41 +55,102 @@ impl Default for Config {
 
 /// Resolve the directory that holds `config`. Honours `TRACEGLASS_CONFIG_DIR`
 /// first so unit tests can use a temp folder without touching the real home.
+/// Accepts deprecated `LOGLENS_CONFIG_DIR` only when the TraceGlass override is unset.
 pub fn config_dir() -> Option<PathBuf> {
-    if let Ok(dir) = env::var("TRACEGLASS_CONFIG_DIR")
-        && !dir.is_empty()
-    {
-        return Some(PathBuf::from(dir));
+    if let Some(dir) = env_dir("TRACEGLASS_CONFIG_DIR") {
+        return Some(dir);
     }
+    // Intentional migration: pre-rename override still points tests/tools at a dir.
+    if let Some(dir) = env_dir("LOGLENS_CONFIG_DIR") {
+        return Some(dir);
+    }
+    platform_config_dir(PRODUCT_DIR)
+}
+
+/// Legacy on-disk directory used before the TraceGlass rename.
+fn legacy_config_dir() -> Option<PathBuf> {
+    // When either override is set, the caller already chose an exact directory —
+    // do not also probe the system legacy path.
+    if env_dir("TRACEGLASS_CONFIG_DIR").is_some() || env_dir("LOGLENS_CONFIG_DIR").is_some() {
+        return None;
+    }
+    platform_config_dir(LEGACY_PRODUCT_DIR)
+}
+
+fn env_dir(key: &str) -> Option<PathBuf> {
+    env::var(key).ok().and_then(|dir| {
+        if dir.is_empty() {
+            None
+        } else {
+            Some(PathBuf::from(dir))
+        }
+    })
+}
+
+fn platform_config_dir(name: &str) -> Option<PathBuf> {
     if let Ok(xdg) = env::var("XDG_CONFIG_HOME")
         && !xdg.is_empty()
     {
-        return Some(PathBuf::from(xdg).join("traceglass"));
+        return Some(PathBuf::from(xdg).join(name));
     }
     #[cfg(windows)]
     {
         if let Ok(appdata) = env::var("APPDATA")
             && !appdata.is_empty()
         {
-            return Some(PathBuf::from(appdata).join("traceglass"));
+            return Some(PathBuf::from(appdata).join(name));
         }
     }
-    env::var_os("HOME").map(|h| PathBuf::from(h).join(".config").join("traceglass"))
+    env::var_os("HOME").map(|h| PathBuf::from(h).join(".config").join(name))
 }
 
 fn config_path() -> Option<PathBuf> {
     config_dir().map(|d| d.join("config"))
 }
 
+/// Prefer the TraceGlass path; if that file is missing, try the legacy loglens path.
+pub fn resolve_readable_path(file_name: &str) -> Option<PathBuf> {
+    let primary = config_dir()?.join(file_name);
+    if primary.is_file() {
+        return Some(primary);
+    }
+    let legacy = legacy_config_dir()?.join(file_name);
+    if legacy.is_file() {
+        return Some(legacy);
+    }
+    None
+}
+
 /// Load preferences. Missing file / unreadable path → [`Config::default`].
+/// When only a legacy `loglens` config exists, it is read and best-effort copied
+/// into the TraceGlass config directory so later saves stay on the new path.
 pub fn load() -> Config {
-    let Some(path) = config_path() else {
+    let Some(path) = resolve_readable_path("config").or_else(config_path) else {
         return Config::default();
     };
     let Ok(text) = fs::read_to_string(&path) else {
         return Config::default();
     };
-    parse(&text)
+    let cfg = parse(&text);
+    maybe_migrate_file(&path, "config");
+    cfg
+}
+
+/// Best-effort copy of a readable legacy file into the TraceGlass config dir.
+pub(crate) fn maybe_migrate_file(source: &Path, file_name: &str) {
+    let Some(dest_dir) = config_dir() else {
+        return;
+    };
+    let dest = dest_dir.join(file_name);
+    if source == dest || dest.exists() {
+        return;
+    }
+    if let Some(legacy_dir) = legacy_config_dir()
+        && source.starts_with(&legacy_dir)
+        && fs::create_dir_all(&dest_dir).is_ok()
+    {
+        let _ = fs::copy(source, dest);
+    }
 }
 
 /// Persist preferences. Best-effort: failures are silent at the call site
@@ -329,5 +398,92 @@ mod tests {
             env::remove_var("TRACEGLASS_CONFIG_DIR");
         }
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_falls_back_to_legacy_loglens_config_and_migrates() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let home = std::env::temp_dir().join(format!(
+            "traceglass-legacy-home-{}-{}",
+            std::process::id(),
+            stamp
+        ));
+        let legacy = home.join(".config").join("loglens");
+        let modern = home.join(".config").join("traceglass");
+        let _ = fs::remove_dir_all(&home);
+        fs::create_dir_all(&legacy).unwrap();
+        fs::write(
+            legacy.join("config"),
+            "ignore_case=true\nshow_legend=false\nscan_on_open=false\nwalkthrough=skipped\n",
+        )
+        .unwrap();
+
+        let prev_home = env::var_os("HOME");
+        let prev_xdg = env::var_os("XDG_CONFIG_HOME");
+        let prev_tg = env::var_os("TRACEGLASS_CONFIG_DIR");
+        let prev_ll = env::var_os("LOGLENS_CONFIG_DIR");
+        // SAFETY: single-threaded under ENV_LOCK; restored before unlock.
+        unsafe {
+            env::remove_var("TRACEGLASS_CONFIG_DIR");
+            env::remove_var("LOGLENS_CONFIG_DIR");
+            env::remove_var("XDG_CONFIG_HOME");
+            env::set_var("HOME", &home);
+        }
+
+        let loaded = load();
+        assert!(loaded.ignore_case);
+        assert!(!loaded.show_legend);
+        assert!(!loaded.scan_on_open);
+        assert_eq!(loaded.walkthrough, WalkthroughDecision::Skipped);
+        assert!(modern.join("config").is_file());
+
+        unsafe {
+            restore_env("HOME", prev_home);
+            restore_env("XDG_CONFIG_HOME", prev_xdg);
+            restore_env("TRACEGLASS_CONFIG_DIR", prev_tg);
+            restore_env("LOGLENS_CONFIG_DIR", prev_ll);
+        }
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn loglens_config_dir_env_still_honoured() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!(
+            "traceglass-legacy-env-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("config"), "ignore_case=true\n").unwrap();
+        let prev_tg = env::var_os("TRACEGLASS_CONFIG_DIR");
+        let prev_ll = env::var_os("LOGLENS_CONFIG_DIR");
+        unsafe {
+            env::remove_var("TRACEGLASS_CONFIG_DIR");
+            env::set_var("LOGLENS_CONFIG_DIR", &dir);
+        }
+
+        assert!(load().ignore_case);
+        assert_eq!(config_dir().as_deref(), Some(dir.as_path()));
+
+        unsafe {
+            restore_env("TRACEGLASS_CONFIG_DIR", prev_tg);
+            restore_env("LOGLENS_CONFIG_DIR", prev_ll);
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    unsafe fn restore_env(key: &str, value: Option<std::ffi::OsString>) {
+        match value {
+            Some(v) => unsafe { env::set_var(key, v) },
+            None => unsafe { env::remove_var(key) },
+        }
     }
 }
