@@ -12,7 +12,7 @@ pub enum OutputFormat {
     Csv,
 }
 
-/// TraceGlass - highlight the things that matter in your logs.
+/// TraceGlass — Grammarly for logs: highlight, scan, and triage diagnostic logs.
 ///
 /// Run with no arguments for the welcome screen (press `o` to browse for
 /// logs), or pass files, folders, or .zip bundles directly. A file path opens
@@ -20,7 +20,12 @@ pub enum OutputFormat {
 /// non-interactive. Keywords and regexes can also be added live from inside
 /// the TUI.
 #[derive(Parser, Debug)]
-#[command(name = "traceglass", version, about, long_about = None)]
+#[command(
+    name = "traceglass",
+    version,
+    about = "TraceGlass — Grammarly for logs: highlight, scan, and triage diagnostic logs",
+    long_about = None
+)]
 pub struct Cli {
     /// Files, folders, or .zip archives to open (folders/zips recurse).
     pub files: Vec<String>,
