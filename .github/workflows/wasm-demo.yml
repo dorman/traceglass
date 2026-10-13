@@ -1,19 +1,14 @@
 # @polsia:user-owned — WASM browser demo build + headless checks.
 name: WASM demo
 
+# Match rust.yml triggers so draft PRs into main always get this check.
+# (Path filters on a brand-new workflow produced empty failed push runs and
+# no pull_request jobs in this repo.)
 on:
   push:
     branches: ["main"]
-    paths:
-      - "traceglass/**"
-      - "web-demo/**"
-      - ".github/workflows/wasm-demo.yml"
   pull_request:
     branches: ["main"]
-    paths:
-      - "traceglass/**"
-      - "web-demo/**"
-      - ".github/workflows/wasm-demo.yml"
 
 permissions: {}
 
