@@ -1,0 +1,7 @@
+# Synthetic MySQL log — inventory-cache.example.com (198.51.100.21)
+# Role: inventory read-model used by checkout-api
+2026-10-13T14:10:00.100101Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.36-demo'
+2026-10-13T14:18:22.000201Z 12 [Note] [MY-010914] [Server] Aborted connection 12 to db: 'inventory' user: 'app' host: '192.0.2.44' (Got an error reading communication packets)
+2026-10-13T14:22:59.100301Z 0 [Warning] [MY-010055] [Server] IP address '203.0.113.99' could not be resolved: Name or service not known
+2026-10-13T14:23:07.200401Z 0 [Error] [MY-000000] [Server] mysqld: too many connections
+2026-10-13T14:23:08.400601Z 0 [Warning] [MY-010914] [Server] Aborted connection 104 to db: 'inventory' user: 'app' host: '192.0.2.45' (Got timeout reading communication packets)
