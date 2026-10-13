@@ -5,7 +5,7 @@ use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Clear, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Tabs, Wrap,
+    Clear, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
 };
 use regex::Regex;
 
@@ -14,12 +14,17 @@ use crate::app::{
 };
 use crate::rules::Rule;
 use crate::signatures::Severity;
-use crate::theme::{self, Theme};
+use crate::theme::{self, Theme, UiMode};
 use crate::walkthrough::{self, Stage as WalkthroughStage};
 use crate::watchlist::EntryKind;
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
+    // Fill the app ground so light themes don't paint on a light host default.
+    frame.render_widget(
+        Paragraph::new("").style(Style::default().bg(app.theme.bg)),
+        area,
+    );
     draw_viewer(frame, app, area);
 
     if app.mode == Mode::Browser {
@@ -161,7 +166,7 @@ fn work_bar(theme: &Theme, counts: Option<[usize; 5]>, frac: f64, width: u16) ->
         for (sev, seg) in segments {
             spans.push(Span::styled(
                 "\u{2588}".repeat(seg),
-                Style::default().fg(sev.color()),
+                Style::default().fg(theme.severity_color(sev)),
             ));
         }
     }
@@ -515,20 +520,37 @@ fn severity_segments(counts: [usize; 5], width: u16) -> Vec<(Severity, usize)> {
 }
 
 /// A one-line stacked bar depicting the severity mix of the findings.
-fn severity_bar(counts: [usize; 5], width: u16) -> Line<'static> {
-    let spans = severity_segments(counts, width)
+/// Uses `▰▱` on truecolor/256 terminals and `=-` ASCII on Ansi16/Mono.
+fn severity_bar(theme: &Theme, counts: [usize; 5], width: u16) -> Line<'static> {
+    let filled = theme.bar_filled();
+    let empty = theme.bar_empty();
+    let segments = severity_segments(counts, width);
+    let used: usize = segments.iter().map(|(_, s)| s).sum();
+    let mut spans = segments
         .into_iter()
-        .map(|(sev, seg)| Span::styled("\u{2588}".repeat(seg), Style::default().fg(sev.color())))
+        .map(|(sev, seg)| {
+            Span::styled(
+                filled.repeat(seg),
+                Style::default().fg(theme.severity_color(sev)),
+            )
+        })
         .collect::<Vec<_>>();
+    if used < width as usize {
+        spans.push(Span::styled(
+            empty.repeat(width as usize - used),
+            Style::default().fg(theme.border),
+        ));
+    }
     Line::from(spans)
 }
 
 /// The base viewer (always drawn; popups layer on top of it).
 fn draw_viewer(frame: &mut Frame, app: &mut App, area: Rect) {
     let show_tabs = app.files.len() > 1;
-    let mut constraints = Vec::new();
+    // Signal: branded header (1) + optional 1-row tabs + body + status.
+    let mut constraints = vec![Constraint::Length(1)];
     if show_tabs {
-        constraints.push(Constraint::Length(3));
+        constraints.push(Constraint::Length(1));
     }
     constraints.push(Constraint::Min(3));
     constraints.push(Constraint::Length(1));
@@ -539,6 +561,9 @@ fn draw_viewer(frame: &mut Frame, app: &mut App, area: Rect) {
         .split(area);
 
     let mut idx = 0;
+    draw_header(frame, app, chunks[idx]);
+    idx += 1;
+
     app.regions.tabs = Rect::default();
     app.regions.tab_hits.clear();
     if show_tabs {
@@ -550,12 +575,13 @@ fn draw_viewer(frame: &mut Frame, app: &mut App, area: Rect) {
     idx += 1;
     let status_area = chunks[idx];
 
+    // Hide the empty highlights rail — it previously ate ~30% width for nothing.
+    let legend_wanted = app.show_legend && !app.rules.is_empty();
     // The side rail is useful only while it leaves the log a readable width.
     // Below that content-derived breakpoint it stacks under the log, keeping
     // the same row-per-rule geometry that the mouse handler uses.
-    let side_legend =
-        app.show_legend && body_area.width >= LOG_MIN_WIDTH + LEGEND_GAP + LEGEND_WIDTH;
-    let stacked_legend = app.show_legend && !side_legend && body_area.height >= 5;
+    let side_legend = legend_wanted && body_area.width >= LOG_MIN_WIDTH + LEGEND_GAP + LEGEND_WIDTH;
+    let stacked_legend = legend_wanted && !side_legend && body_area.height >= 5;
     let body_chunks = if side_legend {
         Layout::default()
             .direction(Direction::Horizontal)
@@ -609,43 +635,110 @@ fn draw_viewer(frame: &mut Frame, app: &mut App, area: Rect) {
     draw_status(frame, app, status_area);
 }
 
-fn draw_tabs(frame: &mut Frame, app: &mut App, area: Rect) {
-    let titles: Vec<Line> = app
-        .files
-        .iter()
-        .map(|f| Line::from(format!(" {} ", f.name)))
-        .collect();
+/// Signal branded header: brand · file · lens · severity counts · key hints.
+fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     let t = &app.theme;
-    let tabs = Tabs::new(titles)
-        .block(t.panel(" Files (Tab/]) ", false))
-        .style(Style::default().fg(t.text_dim))
-        .select(app.current)
-        .highlight_style(t.filled(t.accent));
-    frame.render_widget(tabs, area);
+    let base = Style::default().fg(t.text).bg(t.surface);
+    let dim = Style::default().fg(t.text_dim).bg(t.surface);
+    let mut spans: Vec<Span> = vec![
+        Span::styled(
+            format!(" {} TraceGlass ", t.brand_mark()),
+            Style::default()
+                .fg(t.accent)
+                .bg(t.surface)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("│", dim),
+    ];
 
-    // Hit boxes for mouse tab switching: inner area of the bordered panel.
+    if app.has_files() {
+        let file = app.file();
+        let idx = app.current + 1;
+        let total = app.files.len();
+        spans.push(Span::styled(
+            format!(" {} ({idx}/{total}) ", file.name),
+            Style::default()
+                .fg(t.text)
+                .bg(t.surface)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled("│", dim));
+        spans.push(Span::styled(format!(" lens {} ", app.lens.id()), dim));
+        spans.push(Span::styled("│", dim));
+        let counts = app.severity_counts();
+        // Crit / High / Med — colored dots with counts (Label-Always).
+        for (sev, n) in [
+            (Severity::Critical, counts[Severity::Critical as usize]),
+            (Severity::High, counts[Severity::High as usize]),
+            (Severity::Medium, counts[Severity::Medium as usize]),
+        ] {
+            spans.push(Span::styled(
+                format!(" {} {n} ", t.severity_dot()),
+                Style::default().fg(t.severity_color(sev)).bg(t.surface),
+            ));
+            spans.push(Span::styled(
+                format!("{} ", sev.label().to_ascii_lowercase()),
+                dim,
+            ));
+        }
+    } else {
+        spans.push(Span::styled(" (no file open) ", dim));
+    }
+
+    // Right-aligned key hints — approximate by appending when space remains.
+    let left: String = spans.iter().map(|s| s.content.as_ref()).collect();
+    let hints = " <o> open <a> highlight </> search <?> help ";
+    let used = left.chars().count();
+    let avail = area.width as usize;
+    if used + hints.chars().count() <= avail {
+        let pad = avail.saturating_sub(used + hints.chars().count());
+        if pad > 0 {
+            spans.push(Span::styled(" ".repeat(pad), base));
+        }
+        spans.push(Span::styled(
+            hints,
+            Style::default().fg(t.accent).bg(t.surface),
+        ));
+    }
+
+    frame.render_widget(Paragraph::new(Line::from(spans)).style(base), area);
+}
+
+fn draw_tabs(frame: &mut Frame, app: &mut App, area: Rect) {
+    // One-row borderless tabs — hit boxes align with painted cells (no block).
+    let t = &app.theme;
+    let mut spans: Vec<Span> = Vec::new();
     app.regions.tab_hits.clear();
-    let inner_x = area.x.saturating_add(1);
-    let inner_y = area.y.saturating_add(1);
-    let inner_w = area.width.saturating_sub(2);
-    let inner_end = inner_x.saturating_add(inner_w);
-    let mut x = inner_x;
-    for f in &app.files {
-        let width = f.name.chars().count() as u16 + 2; // spaces around name
-        if x >= inner_end {
+    let mut x = area.x;
+    let end = area.x.saturating_add(area.width);
+    for (i, f) in app.files.iter().enumerate() {
+        let label = format!(" {} ", f.name);
+        let width = label.chars().count() as u16;
+        if x >= end {
             break;
         }
-        let hit_w = width.min(inner_end.saturating_sub(x));
+        let hit_w = width.min(end.saturating_sub(x));
         if hit_w > 0 {
             app.regions.tab_hits.push(Rect {
                 x,
-                y: inner_y,
+                y: area.y,
                 width: hit_w,
                 height: 1,
             });
         }
-        x = x.saturating_add(width).saturating_add(1); // +1 for divider
+        let style = if i == app.current {
+            t.filled(t.accent)
+        } else {
+            Style::default().fg(t.text_dim).bg(t.bg)
+        };
+        spans.push(Span::styled(label, style));
+        spans.push(Span::styled(" ", Style::default().bg(t.bg)));
+        x = x.saturating_add(width).saturating_add(1);
     }
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(t.bg)),
+        area,
+    );
 }
 
 // Big banner (needs a wide-ish pane). TRACEGLASS is longer than the old
@@ -680,9 +773,15 @@ fn draw_welcome(frame: &mut Frame, theme: &Theme, area: Rect) {
 
     let mut lines: Vec<Line> = Vec::new();
     let last = logo.len().saturating_sub(1).max(1);
+    let truecolor = matches!(theme.depth, theme::ColorDepth::Truecolor);
     for (i, l) in logo.iter().enumerate() {
-        let frac = i as f64 / last as f64;
-        let color = theme::lerp_color(theme.logo_top, theme.logo_bottom, frac);
+        // Gradient only when truecolor; otherwise solid teal (lerp breaks on Named).
+        let color = if truecolor {
+            let frac = i as f64 / last as f64;
+            theme::lerp_color(theme.logo_top, theme.logo_bottom, frac)
+        } else {
+            theme.accent
+        };
         lines.push(
             Line::from(Span::styled(
                 *l,
@@ -786,25 +885,39 @@ fn shift_spans_left(spans: &[MatchSpan], byte_off: usize) -> Vec<MatchSpan> {
 /// Split one line into styled spans, layering search matches over rule matches.
 ///
 /// `text` is the slice actually painted (already cut by horizontal scroll);
-/// `full_line` is the whole log line and is used only for level-tint detection,
-/// so panning right does not change a line's ERROR/WARN color.
+/// `full_line` is the whole log line and is used for level-token detection.
+/// Only the level *token* is tinted — message text stays `theme.text`.
+///
+/// `byte_off` is the horizontal-scroll cut into `full_line` (so the level token
+/// range can be mapped into `text` coordinates).
+/// `current_search` is the byte range (in `text`) of the current match, which
+/// is painted with reverse video on top of the normal search fill.
+#[allow(clippy::too_many_arguments)]
 fn render_line_spans<'a>(
     text: &'a str,
     full_line: &str,
+    byte_off: usize,
     rule_spans: &[MatchSpan],
     rules: &[Rule],
     search: Option<&Regex>,
+    current_search: Option<(usize, usize)>,
     theme: &Theme,
 ) -> Vec<Span<'a>> {
-    // The level tint is a property of the line, not of each segment: computing it
-    // once here (instead of per span) keeps a long line with many matches from
-    // rescanning the line hundreds of times per frame.
-    let base_fg = theme::level_fg(full_line, theme);
-
     let len = text.len();
     if len == 0 {
         return vec![Span::raw("")];
     }
+
+    // Level token range in painted coordinates (if still visible after pan).
+    let level_in_text: Option<(ratatui::style::Color, usize, usize)> =
+        theme::level_token_styled(full_line, theme).and_then(|(color, range)| {
+            let start = range.start.saturating_sub(byte_off);
+            let end = range.end.saturating_sub(byte_off);
+            if end == 0 || start >= len || end <= start {
+                return None;
+            }
+            Some((color, start.min(len), end.min(len)))
+        });
 
     // Cap ranges collected per painted line so a busy search over a long line
     // cannot allocate unbounded style cut-points during render.
@@ -819,10 +932,6 @@ fn render_line_spans<'a>(
         None => Vec::new(),
     };
 
-    if rule_spans.is_empty() && search_ranges.is_empty() {
-        return vec![Span::styled(text, Style::default().fg(base_fg))];
-    }
-
     let mut points: BTreeSet<usize> = BTreeSet::new();
     points.insert(0);
     points.insert(len);
@@ -833,6 +942,14 @@ fn render_line_spans<'a>(
     for (s, e) in &search_ranges {
         points.insert(*s);
         points.insert(*e);
+    }
+    if let Some((_, a, b)) = level_in_text {
+        points.insert(a);
+        points.insert(b);
+    }
+    if let Some((a, b)) = current_search {
+        points.insert(a);
+        points.insert(b);
     }
 
     // Clamp/filter cut points to valid char boundaries within the line so a
@@ -847,13 +964,26 @@ fn render_line_spans<'a>(
         if a >= b {
             continue;
         }
-        if search_ranges.iter().any(|&(s, e)| s <= a && b <= e) {
+        if current_search.is_some_and(|(s, e)| s <= a && b <= e) {
+            // Current match: reverse video (baseline) on the search fill.
+            spans.push(Span::styled(
+                &text[a..b],
+                theme
+                    .filled(theme.search_current_bg)
+                    .add_modifier(Modifier::REVERSED),
+            ));
+        } else if search_ranges.iter().any(|&(s, e)| s <= a && b <= e) {
             spans.push(Span::styled(&text[a..b], theme.filled(theme.search_bg)));
         } else if let Some(m) = rule_spans.iter().find(|m| m.start <= a && b <= m.end) {
             let color = rules.get(m.rule).map(|r| r.color).unwrap_or(theme.accent);
             spans.push(Span::styled(&text[a..b], theme.filled(color)));
+        } else if let Some((color, ls, le)) = level_in_text
+            && ls <= a
+            && b <= le
+        {
+            spans.push(Span::styled(&text[a..b], Style::default().fg(color)));
         } else {
-            spans.push(Span::styled(&text[a..b], Style::default().fg(base_fg)));
+            spans.push(Span::styled(&text[a..b], Style::default().fg(theme.text)));
         }
     }
     spans
@@ -864,7 +994,14 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
     let file = app.file();
     let height = app.viewport_height.max(1);
     let search = app.search.as_ref().map(|s| &s.regex);
-    let block = t.panel(&log_title(app, file), true);
+    // Log pane is focused when no overlay owns the keyboard.
+    let log_focused = !app.show_findings
+        && !app.show_help
+        && !app.show_settings
+        && !app.show_watchlist
+        && !app.show_lens_chooser
+        && app.mode == Mode::Viewer;
+    let block = t.panel_tight(&log_title(app, file), log_focused);
 
     if file.view.is_empty() {
         // An empty view means "filtered everything out" only when a filter is on;
@@ -930,34 +1067,59 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
 
         let mut spans = Vec::new();
         let bookmarked = file.bookmarks.binary_search(&line_idx).is_ok();
-        // Severity dot from the last scan; bookmark ◆ when unmarked by scan.
+        // Cursor marker (Signal ▌ / ASCII |) then severity/bookmark glyph.
+        if is_cursor {
+            spans.push(Span::styled(t.pill_lead(), Style::default().fg(t.accent)));
+        } else {
+            spans.push(Span::raw(" "));
+        }
         match file.scan_severity.get(line_idx).copied().flatten() {
-            Some(sev) => spans.push(Span::styled("\u{25CF} ", Style::default().fg(sev.color()))),
+            Some(sev) => spans.push(Span::styled(
+                format!("{} ", t.severity_dot()),
+                Style::default().fg(t.severity_color(sev)),
+            )),
             None if bookmarked => {
-                spans.push(Span::styled("\u{25C6} ", Style::default().fg(t.accent)));
+                spans.push(Span::styled(
+                    format!("{} ", t.brand_mark()),
+                    Style::default().fg(t.accent),
+                ));
             }
             None => spans.push(Span::raw("  ")),
         }
         let gutter_fg = if bookmarked { t.accent } else { t.gutter };
         spans.push(Span::styled(
-            format!("{:>width$} \u{2502} ", line_idx + 1, width = gutter_width),
+            format!("{:>width$} ", line_idx + 1, width = gutter_width),
             Style::default().fg(gutter_fg),
         ));
         // Dim cue that more content exists to the left of the viewport.
         if h_scroll > 0 {
             spans.push(Span::styled("‹", Style::default().fg(t.text_dim)));
         }
+        // Current search match: first hit on the cursor line (reverse video).
+        let current_search = if is_cursor {
+            search.and_then(|re| {
+                re.find(text)
+                    .filter(|m| m.start() != m.end())
+                    .map(|m| (m.start(), m.end()))
+            })
+        } else {
+            None
+        };
         spans.extend(render_line_spans(
-            text, full, &shifted, &app.rules, search, t,
+            text,
+            full,
+            byte_off,
+            &shifted,
+            &app.rules,
+            search,
+            current_search,
+            t,
         ));
 
         let mut line = Line::from(spans);
         if is_cursor {
-            line = line.style(
-                Style::default()
-                    .bg(t.cursor_bg)
-                    .add_modifier(Modifier::BOLD),
-            );
+            // Wash only — no whole-row BOLD (Signal / baseline).
+            line = line.style(Style::default().bg(t.cursor_bg));
         }
         lines.push(line);
     }
@@ -988,17 +1150,11 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn log_title(app: &App, file: &LogFile) -> String {
-    let mut title = format!(
-        " {} · {} {} ",
-        file.name,
-        app.lens.title(),
-        app.lens.version()
-    );
-    if app.filter_on {
-        title.push_str("[FILTER] ");
-    }
+    // Pill-style title: name only — lens/version live in the header.
+    let mut title = format!(" {} ", file.name);
     if let Some(s) = &app.search {
-        title.push_str(&format!("[/{}] ", s.raw));
+        let raw: String = s.raw.chars().take(24).collect();
+        title.push_str(&format!("/{raw} "));
     }
     title
 }
@@ -1037,21 +1193,41 @@ fn draw_legend(frame: &mut Frame, app: &App, area: Rect) {
         }
     }
 
-    let block = t.panel(" Keyword highlights (click to jump) ", false);
+    let block = t.panel(" highlights ", false);
     frame.render_widget(List::new(items).block(block), area);
+}
+
+fn viewer_mode(app: &App) -> UiMode {
+    if app.search.is_some() {
+        UiMode::Search
+    } else if app.filter_on {
+        UiMode::Filter
+    } else {
+        UiMode::Normal
+    }
 }
 
 fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
     let t = &app.theme;
     let base = Style::default().fg(t.status_fg).bg(t.status_bg);
-    let line = if let Some(msg) = &app.status {
-        Line::from(vec![Span::styled(
-            format!(" {msg}"),
+    let mode = viewer_mode(app);
+
+    // Segmented status: left = mode pill + context, middle = message (optional),
+    // right = position. A transient message no longer replaces the whole bar.
+    let mut spans: Vec<Span> = vec![
+        Span::styled(format!(" {} ", mode.label()), t.mode_pill(mode)),
+        Span::styled(" ", base),
+    ];
+
+    if let Some(msg) = &app.status {
+        spans.push(Span::styled(
+            format!("{msg}  "),
             t.status_style(Theme::status_tone(msg)),
-        )])
-    } else if app.has_files() {
+        ));
+    }
+
+    if app.has_files() {
         let file = app.file();
-        // Absolute (1-based) line of the cursor — stays meaningful in filter mode.
         let abs_line = file
             .view
             .get(file.view_pos)
@@ -1061,54 +1237,104 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
         let total_lines = file.lines.len();
         let shown = file.view.len();
         let hl = file.total_matches();
-        // When filtered, surface how many lines remain so Lx/y isn't misleading.
-        let filter = if app.filter_on {
-            format!(" · {shown} shown")
+        let pct = if total_lines == 0 {
+            0
         } else {
-            String::new()
+            ((abs_line as f64 / total_lines as f64) * 100.0).round() as usize
         };
-        let trunc = if file.truncated { " · trunc" } else { "" };
-        let ic = if app.ignore_case { " · ic" } else { "" };
-        let search = match &app.search {
-            Some(s) => {
-                let raw: String = s.raw.chars().take(20).collect();
-                let truncated = if s.raw.chars().count() > 20 {
-                    format!("{raw}…")
-                } else {
-                    raw
-                };
-                format!(" · /{truncated}")
+
+        if app.status.is_none() {
+            if !app.findings.is_empty() {
+                spans.push(Span::styled(
+                    format!("{} findings · press F to review  ", app.findings.len()),
+                    base,
+                ));
+            } else if app.rules.is_empty() {
+                spans.push(Span::styled("press a to add highlight  ", base));
             }
-            None => String::new(),
-        };
-        let bm = file.bookmarks.len();
-        let bookmarks = if bm > 0 {
-            format!(" · {bm} bm")
-        } else {
-            String::new()
-        };
-        let col = if file.h_scroll > 0 {
-            format!(" · col {}", file.h_scroll + 1)
-        } else {
-            String::new()
-        };
-        let findings = if app.findings.is_empty() {
-            String::new()
-        } else {
-            format!(" · {} fd", app.findings.len())
-        };
-        Line::from(vec![Span::styled(
-            format!(
-                " L{abs_line}/{total_lines} · {hl} hl{filter}{trunc}{ic}{search}{bookmarks}{col}{findings} · lens {} {}  ·  L choose · ? help",
-                app.lens.id(),
-                app.lens.version()
-            ),
-            base,
-        )])
-    } else {
-        Line::from(vec![Span::styled(" o open  ·  ? help  ·  q quit", base)])
+            if hl > 0 {
+                spans.push(Span::styled(format!("{hl} highlights  "), base));
+            }
+            if app.filter_on {
+                spans.push(Span::styled(format!("{shown} shown  "), base));
+            }
+            if let Some(s) = &app.search {
+                let raw: String = s.raw.chars().take(20).collect();
+                let (idx, total) = search_match_index(app);
+                spans.push(Span::styled(
+                    format!("/{raw}  {idx} of {total}  "),
+                    Style::default().fg(t.secondary).bg(t.status_bg),
+                ));
+            }
+            let bm = file.bookmarks.len();
+            if bm > 0 {
+                spans.push(Span::styled(format!("{bm} bookmarks  "), base));
+            }
+            if file.h_scroll > 0 {
+                spans.push(Span::styled(format!("col {}  ", file.h_scroll + 1), base));
+            }
+            if file.truncated {
+                spans.push(Span::styled("truncated  ", base));
+            }
+            if app.ignore_case {
+                spans.push(Span::styled("ignore-case  ", base));
+            }
+            spans.push(Span::styled(
+                "? help  ",
+                Style::default().fg(t.accent).bg(t.status_bg),
+            ));
+        }
+
+        // Right-aligned position — pad to fill remaining width.
+        let right = format!("Ln {abs_line}/{total_lines}  {pct}% ");
+        let left_len: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+        let avail = area.width as usize;
+        let pad = avail.saturating_sub(left_len + right.chars().count());
+        if pad > 0 {
+            spans.push(Span::styled(" ".repeat(pad), base));
+        }
+        spans.push(Span::styled(
+            right,
+            Style::default().fg(t.text).bg(t.status_bg),
+        ));
+    } else if app.status.is_none() {
+        spans.push(Span::styled("o open  ·  ? help  ·  q quit", base));
+    }
+
+    // Clear first so differential redraws cannot leave stale glyphs from a
+    // longer previous message (PTY smoke tests assert contiguous status text).
+    frame.render_widget(Clear, area);
+    frame.render_widget(Paragraph::new(Line::from(spans)).style(base), area);
+}
+
+/// Current search hit index (1-based) and total for the status counter.
+/// Counts hit *lines* (same granularity as `n`/`N` navigation).
+fn search_match_index(app: &App) -> (usize, usize) {
+    if !app.has_files() {
+        return (0, 0);
+    }
+    let Some(search) = &app.search else {
+        return (0, 0);
     };
-    frame.render_widget(Paragraph::new(line).style(base), area);
+    let file = app.file();
+    let mut hit_lines: Vec<usize> = Vec::new();
+    for (vp, &line_idx) in file.view.iter().enumerate() {
+        if search.regex.find(&file.lines[line_idx]).is_some() {
+            hit_lines.push(vp);
+        }
+    }
+    let total = hit_lines.len();
+    if total == 0 {
+        return (0, 0);
+    }
+    let current = match hit_lines.binary_search(&file.view_pos) {
+        Ok(idx) => idx + 1,
+        Err(idx) => {
+            // Nearest hit at or before the cursor; wrap sensibly.
+            if idx == 0 { 1 } else { idx }
+        }
+    };
+    (current.min(total), total)
 }
 
 fn draw_browser_popup(frame: &mut Frame, app: &mut App, area: Rect) {
@@ -1248,7 +1474,7 @@ fn findings_filter_tabs(app: &App, counts: [usize; 5], width: u16) -> Line<'stat
     if width < 52 {
         let (label, count, color) = match app.findings_filter {
             None => ("all", app.findings.len(), t.text),
-            Some(sev) => (sev.label(), counts[sev as usize], sev.color()),
+            Some(sev) => (sev.label(), counts[sev as usize], t.severity_color(sev)),
         };
         return Line::from(vec![
             Span::styled(" filter ", Style::default().fg(t.text_dim)),
@@ -1265,7 +1491,7 @@ fn findings_filter_tabs(app: &App, counts: [usize; 5], width: u16) -> Line<'stat
     for opt in FINDING_FILTERS {
         let (label, n, colour) = match opt {
             None => ("all", app.findings.len(), t.text),
-            Some(sev) => (sev.label(), counts[sev as usize], sev.color()),
+            Some(sev) => (sev.label(), counts[sev as usize], t.severity_color(sev)),
         };
         let active = app.findings_filter == opt;
         let mut style = Style::default().fg(colour);
@@ -1335,7 +1561,10 @@ fn draw_findings(frame: &mut Frame, app: &mut App, area: Rect) {
     let detail_area = parts[3];
     app.regions.findings_list = list_area;
 
-    frame.render_widget(Paragraph::new(severity_bar(c, bar_area.width)), bar_area);
+    frame.render_widget(
+        Paragraph::new(severity_bar(&app.theme, c, bar_area.width)),
+        bar_area,
+    );
     frame.render_widget(
         Paragraph::new(findings_filter_tabs(app, c, tabs_area.width)),
         tabs_area,
@@ -1385,7 +1614,7 @@ fn draw_findings(frame: &mut Frame, app: &mut App, area: Rect) {
             Span::styled(
                 format!("  ×{}", f.count),
                 Style::default()
-                    .fg(sig.severity.color())
+                    .fg(t.severity_color(sig.severity))
                     .add_modifier(Modifier::BOLD),
             )
         } else {
@@ -2541,13 +2770,23 @@ mod tests {
 
     #[test]
     fn severity_bar_handles_zero_width_and_sparse_counts() {
-        let empty = severity_bar([0; 5], 0);
+        let t = Theme::dark();
+        let empty = severity_bar(&t, [0; 5], 0);
         assert!(empty.spans.is_empty() || empty.width() == 0);
 
         let counts = [1, 0, 2, 0, 1]; // info, low, med, high, crit
-        let bar = severity_bar(counts, 10);
+        let bar = severity_bar(&t, counts, 10);
         assert!(bar.width() <= 10);
         assert!(!bar.spans.is_empty());
+    }
+
+    #[test]
+    fn severity_bar_uses_ascii_fallback_on_ansi16() {
+        let t = Theme::signal(theme::ColorDepth::Ansi16, false);
+        let bar = severity_bar(&t, [0, 0, 1, 1, 1], 6);
+        let text: String = bar.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(text.contains('='), "{text:?}");
+        assert!(!text.contains('\u{25B0}'), "{text:?}");
     }
 
     /// The longest label used to run straight into the key column, because the
@@ -2676,7 +2915,7 @@ mod tests {
         // findings panel, so the reader recognises the shape when it opens.
         let line = work_bar(&t, Some([0, 0, 6, 0, 1]), 0.5, 60);
         let (_, _, _, lead) = bar_parts(&line);
-        assert_eq!(lead, Some(Severity::Critical.color()));
+        assert_eq!(lead, Some(t.severity_color(Severity::Critical)));
 
         // Nothing found yet reads as "running, no signals so far", not as empty.
         let no_signals = work_bar(&t, Some([0; 5]), 0.5, 60);
@@ -2741,14 +2980,41 @@ mod tests {
         let out = render_line_spans(
             "ERROR happened",
             "ERROR happened",
+            0,
             &spans,
             &[rule],
             Some(&search),
+            None,
             &theme,
         );
         assert!(out.len() >= 2);
         // The search-styled prefix should use SEARCH_BG.
         assert_eq!(out[0].style.bg, Some(theme.search_bg));
+    }
+
+    #[test]
+    fn render_line_spans_current_match_uses_reverse() {
+        let theme = Theme::dark();
+        let search = Regex::new("ERROR").unwrap();
+        let out = render_line_spans(
+            "ERROR happened",
+            "ERROR happened",
+            0,
+            &[],
+            &[],
+            Some(&search),
+            Some((0, 5)),
+            &theme,
+        );
+        assert!(
+            out[0].style.add_modifier.contains(Modifier::REVERSED)
+                || out[0]
+                    .style
+                    .bg
+                    .is_some_and(|c| c == theme.search_current_bg),
+            "current match should reverse or use current search fill: {:?}",
+            out[0].style
+        );
     }
 
     #[test]
@@ -2761,7 +3027,7 @@ mod tests {
             end: 2,
             rule: 0,
         }];
-        let out = render_line_spans("字abc", "字abc", &spans, &[rule], None, &theme);
+        let out = render_line_spans("字abc", "字abc", 0, &spans, &[rule], None, None, &theme);
         assert!(!out.is_empty());
         let joined: String = out.iter().map(|s| s.content.as_ref()).collect();
         assert_eq!(joined, "字abc");
@@ -2769,24 +3035,32 @@ mod tests {
 
     #[test]
     fn render_line_spans_empty_line() {
-        let out = render_line_spans("", "", &[], &[], None, &Theme::dark());
+        let out = render_line_spans("", "", 0, &[], &[], None, None, &Theme::dark());
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].content.as_ref(), "");
     }
 
     #[test]
-    fn render_line_spans_applies_level_error_tint() {
+    fn render_line_spans_tints_level_token_only() {
         let theme = Theme::dark();
         let out = render_line_spans(
             "2026 ERROR failed",
             "2026 ERROR failed",
+            0,
             &[],
             &[],
             None,
+            None,
             &theme,
         );
-        assert_eq!(out.len(), 1);
-        assert_eq!(out[0].style.fg, Some(theme.level_error));
+        assert!(out.len() >= 2);
+        let error_span = out.iter().find(|s| s.content.as_ref() == "ERROR").unwrap();
+        assert_eq!(error_span.style.fg, Some(theme.level_error));
+        let msg = out
+            .iter()
+            .find(|s| s.content.as_ref().contains("failed"))
+            .unwrap();
+        assert_eq!(msg.style.fg, Some(theme.text));
     }
 
     #[test]
@@ -2801,23 +3075,24 @@ mod tests {
             end: 5,
             rule: 0,
         }];
-        let out = render_line_spans(text, text, &spans, &[rule], None, &theme);
+        let out = render_line_spans(text, text, 0, &spans, &[rule], None, None, &theme);
         let joined: String = out.iter().map(|s| s.content.as_ref()).collect();
         assert_eq!(joined, text);
         assert!(!joined.contains('\u{1b}'));
     }
 
     #[test]
-    fn render_line_spans_keeps_level_tint_when_panned_past_the_level_token() {
+    fn render_line_spans_message_stays_neutral_when_panned_past_level_token() {
         let theme = Theme::dark();
         let full = "2026-07-22 10:00:07 ERROR failed to connect to update server";
-        // Horizontal scroll cuts the ERROR token out of the painted slice; the
-        // line must keep its error tint instead of falling back to plain text.
-        let painted = &full[40..];
+        // Horizontal scroll cuts the ERROR token out of the painted slice; with
+        // token-only tint the remaining message stays theme.text.
+        let byte_off = 40;
+        let painted = &full[byte_off..];
         assert!(!painted.contains("ERROR"));
-        let out = render_line_spans(painted, full, &[], &[], None, &theme);
+        let out = render_line_spans(painted, full, byte_off, &[], &[], None, None, &theme);
         assert_eq!(out.len(), 1);
-        assert_eq!(out[0].style.fg, Some(theme.level_error));
+        assert_eq!(out[0].style.fg, Some(theme.text));
     }
 
     /// Regression guard: the level tint is a per-line property, so it must be
@@ -2839,7 +3114,7 @@ mod tests {
         let time_it = |search: Option<&Regex>| {
             let start = std::time::Instant::now();
             for _ in 0..20 {
-                let spans = render_line_spans(&line, &line, &[], &[], search, &theme);
+                let spans = render_line_spans(&line, &line, 0, &[], &[], search, None, &theme);
                 assert!(!spans.is_empty());
             }
             start.elapsed().max(std::time::Duration::from_nanos(1))
@@ -2856,5 +3131,244 @@ mod tests {
             "busy line cost {ratio:.1}× the single-span line ({busy:?} vs {plain:?}) \
              — level tint recomputed per span?"
         );
+    }
+
+    /// Snapshot the Signal chrome at each color depth so depth regressions show
+    /// up in review (hand-mapped Named tables, glyph fallbacks, header).
+    fn buffer_text(term: &ratatui::Terminal<ratatui::backend::TestBackend>) -> String {
+        let buffer = term.backend().buffer();
+        let mut out = String::new();
+        for y in 0..buffer.area.height {
+            for x in 0..buffer.area.width {
+                out.push_str(buffer[(x, y)].symbol());
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    fn signal_app_for_depth(depth: theme::ColorDepth) -> App {
+        let theme = Theme::signal(depth, false);
+        let rule = rules::compile_rule("ERROR", false, false, 0, &theme).unwrap();
+        let mut app = App::new(&["samples/sample.log".into()], vec![rule], false).unwrap();
+        app.theme = theme;
+        app.show_legend = true;
+        // Drive a scan synchronously so severity dots/header counts appear.
+        app.enable_auto_scan();
+        while app.scanning() {
+            let _ = app.scan_step(4000);
+        }
+        app
+    }
+
+    #[test]
+    fn signal_snapshots_per_color_depth() {
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+
+        for depth in [
+            theme::ColorDepth::Truecolor,
+            theme::ColorDepth::Ansi256,
+            theme::ColorDepth::Ansi16,
+            theme::ColorDepth::Mono,
+        ] {
+            let mut app = signal_app_for_depth(depth);
+            let mut term = Terminal::new(TestBackend::new(100, 24)).unwrap();
+            term.draw(|frame| draw(frame, &mut app)).unwrap();
+            let text = buffer_text(&term);
+            assert!(
+                text.contains("TraceGlass"),
+                "depth {depth:?} missing brand: {text}"
+            );
+            assert!(
+                text.contains("NORMAL") || text.contains("FILTER") || text.contains("SEARCH"),
+                "depth {depth:?} missing mode pill: {text}"
+            );
+            assert!(
+                text.contains("sample.log"),
+                "depth {depth:?} missing file: {text}"
+            );
+            // Empty-legend rule is already satisfied (we have a rule); glyph
+            // fallback must kick in on Ansi16/Mono.
+            if !depth.unicode_glyphs() {
+                assert!(
+                    text.contains('*') || text.contains('='),
+                    "depth {depth:?} should use ASCII chrome glyphs: {text}"
+                );
+            }
+
+            // Search view: match count + reverse current match path.
+            app.begin_input(InputKind::Search);
+            app.input_buffer = "ERROR".into();
+            app.confirm_input();
+            term.draw(|frame| draw(frame, &mut app)).unwrap();
+            let search_text = buffer_text(&term);
+            assert!(
+                search_text.contains("SEARCH") || search_text.contains("/ERROR"),
+                "depth {depth:?} search chrome: {search_text}"
+            );
+            assert!(
+                search_text.contains(" of ") || search_text.contains("/ERROR"),
+                "depth {depth:?} missing match count: {search_text}"
+            );
+
+            // Help overlay.
+            app.show_help = true;
+            term.draw(|frame| draw(frame, &mut app)).unwrap();
+            let help_text = buffer_text(&term);
+            assert!(
+                help_text.to_ascii_lowercase().contains("help")
+                    || help_text.contains("quit")
+                    || help_text.contains("Esc"),
+                "depth {depth:?} help overlay: {help_text}"
+            );
+            app.show_help = false;
+
+            // Findings / detail.
+            if !app.findings.is_empty() {
+                app.show_findings = true;
+                term.draw(|frame| draw(frame, &mut app)).unwrap();
+                let findings_text = buffer_text(&term);
+                assert!(
+                    findings_text.contains("finding")
+                        || findings_text.contains("CRIT")
+                        || findings_text.contains("HIGH")
+                        || findings_text.contains("MED"),
+                    "depth {depth:?} findings: {findings_text}"
+                );
+            }
+        }
+    }
+
+    /// When `SIGNAL_SHOTS_DIR` is set, dump TestBackend cell grids as JSON for
+    /// truecolor and Ansi16 (conhost) — consumed by `scripts/cells_to_png.py`.
+    #[test]
+    fn export_signal_shot_cells_when_requested() {
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+        use ratatui::style::Color;
+        use std::path::{Path, PathBuf};
+
+        let Ok(dir) = std::env::var("SIGNAL_SHOTS_DIR") else {
+            return;
+        };
+        let out = PathBuf::from(dir);
+        std::fs::create_dir_all(&out).unwrap();
+
+        fn color_json(c: Color) -> String {
+            match c {
+                Color::Reset => "null".into(),
+                Color::Black => r#"{"rgb":[0,0,0]}"#.into(),
+                Color::Red => r#"{"rgb":[205,49,49]}"#.into(),
+                Color::Green => r#"{"rgb":[13,188,121]}"#.into(),
+                Color::Yellow => r#"{"rgb":[229,229,16]}"#.into(),
+                Color::Blue => r#"{"rgb":[36,114,200]}"#.into(),
+                Color::Magenta => r#"{"rgb":[188,63,188]}"#.into(),
+                Color::Cyan => r#"{"rgb":[17,168,205]}"#.into(),
+                Color::Gray => r#"{"rgb":[229,229,229]}"#.into(),
+                Color::DarkGray => r#"{"rgb":[102,102,102]}"#.into(),
+                Color::LightRed => r#"{"rgb":[241,76,76]}"#.into(),
+                Color::LightGreen => r#"{"rgb":[35,209,139]}"#.into(),
+                Color::LightYellow => r#"{"rgb":[245,245,67]}"#.into(),
+                Color::LightBlue => r#"{"rgb":[59,142,234]}"#.into(),
+                Color::LightMagenta => r#"{"rgb":[214,112,214]}"#.into(),
+                Color::LightCyan => r#"{"rgb":[41,184,219]}"#.into(),
+                Color::White => r#"{"rgb":[255,255,255]}"#.into(),
+                Color::Rgb(r, g, b) => format!(r#"{{"rgb":[{r},{g},{b}]}}"#),
+                Color::Indexed(i) => {
+                    // Approximate xterm-256 for preview PNGs.
+                    let (r, g, b) = if i < 16 {
+                        [
+                            (0, 0, 0),
+                            (205, 49, 49),
+                            (13, 188, 121),
+                            (229, 229, 16),
+                            (36, 114, 200),
+                            (188, 63, 188),
+                            (17, 168, 205),
+                            (229, 229, 229),
+                            (102, 102, 102),
+                            (241, 76, 76),
+                            (35, 209, 139),
+                            (245, 245, 67),
+                            (59, 142, 234),
+                            (214, 112, 214),
+                            (41, 184, 219),
+                            (255, 255, 255),
+                        ][i as usize]
+                    } else if i < 232 {
+                        let n = i - 16;
+                        let lvl = |v: u8| if v == 0 { 0 } else { 55 + 40 * v };
+                        (lvl(n / 36), lvl((n % 36) / 6), lvl(n % 6))
+                    } else {
+                        let v = 8 + 10 * (i - 232);
+                        (v, v, v)
+                    };
+                    format!(r#"{{"rgb":[{r},{g},{b}]}}"#)
+                }
+            }
+        }
+
+        fn write_shot(out: &Path, name: &str, tag: &str, term: &Terminal<TestBackend>) {
+            let buffer = term.backend().buffer();
+            let mut body = String::from("{\"width\":");
+            body.push_str(&buffer.area.width.to_string());
+            body.push_str(",\"height\":");
+            body.push_str(&buffer.area.height.to_string());
+            body.push_str(",\"cells\":[");
+            for y in 0..buffer.area.height {
+                if y > 0 {
+                    body.push(',');
+                }
+                body.push('[');
+                for x in 0..buffer.area.width {
+                    if x > 0 {
+                        body.push(',');
+                    }
+                    let cell = &buffer[(x, y)];
+                    let ch = cell.symbol().replace('\\', "\\\\").replace('"', "\\\"");
+                    body.push_str(&format!(
+                        "{{\"ch\":\"{ch}\",\"fg\":{},\"bg\":{}}}",
+                        color_json(cell.fg),
+                        color_json(cell.bg)
+                    ));
+                }
+                body.push(']');
+            }
+            body.push_str("]}");
+            std::fs::write(out.join(format!("{name}-{tag}.json")), body).unwrap();
+        }
+
+        for (depth, tag) in [
+            (theme::ColorDepth::Truecolor, "truecolor"),
+            (theme::ColorDepth::Ansi16, "ansi16"),
+        ] {
+            let mut app = signal_app_for_depth(depth);
+            let mut term = Terminal::new(TestBackend::new(110, 28)).unwrap();
+
+            term.draw(|frame| draw(frame, &mut app)).unwrap();
+            write_shot(&out, "main", tag, &term);
+
+            app.begin_input(InputKind::Search);
+            app.input_buffer = "ERROR".into();
+            app.confirm_input();
+            term.draw(|frame| draw(frame, &mut app)).unwrap();
+            write_shot(&out, "search", tag, &term);
+
+            // Detail/findings: clear search so the overlay is the subject.
+            app.clear_search();
+            app.show_findings = true;
+            assert!(
+                !app.findings.is_empty(),
+                "expected scan findings for detail shot"
+            );
+            term.draw(|frame| draw(frame, &mut app)).unwrap();
+            write_shot(&out, "detail", tag, &term);
+            app.show_findings = false;
+
+            app.show_help = true;
+            term.draw(|frame| draw(frame, &mut app)).unwrap();
+            write_shot(&out, "help", tag, &term);
+        }
     }
 }

@@ -248,7 +248,7 @@ fn handle_mouse(app: &mut App, m: MouseEvent) {
             }
             // Click a highlight in the legend -> jump through its matches.
             let legend_inner = inner(r.legend);
-            if app.show_legend && hit(legend_inner, col, row) {
+            if app.show_legend && !app.rules.is_empty() && hit(legend_inner, col, row) {
                 let idx = (row - legend_inner.y) as usize;
                 app.click_rule(idx);
                 return;
