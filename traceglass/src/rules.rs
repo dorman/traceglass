@@ -1,8 +1,14 @@
-use anyhow::{Context, Result, bail};
-use ratatui::style::Color;
+use anyhow::{Context, Result};
 use regex::{Regex, RegexBuilder, RegexSet, RegexSetBuilder};
 
+#[cfg(feature = "tui")]
+use anyhow::bail;
+#[cfg(feature = "tui")]
+use ratatui::style::Color;
+
+#[cfg(feature = "cli")]
 use crate::cli::Cli;
+#[cfg(feature = "tui")]
 use crate::theme::Theme;
 
 /// Max highlight rules a session may hold (CLI + live adds).
@@ -15,6 +21,7 @@ const REGEX_SIZE_LIMIT: usize = 1 << 20; // 1 MiB
 /// Cap nesting depth so pathological patterns fail at compile time.
 const REGEX_NEST_LIMIT: u32 = 32;
 
+#[cfg(feature = "tui")]
 #[derive(Clone)]
 pub struct Rule {
     /// The raw text the user entered (keyword or regex source). Kept so the
@@ -55,6 +62,7 @@ where
 }
 
 /// Compile a single keyword or regex into a colored [`Rule`].
+#[cfg(feature = "tui")]
 pub fn compile_rule(
     label: &str,
     is_regex: bool,
@@ -90,6 +98,7 @@ pub fn compile_rule(
     })
 }
 
+#[cfg(all(feature = "cli", feature = "tui"))]
 pub fn build_rules(cli: &Cli, theme: &Theme, ignore_case: bool) -> Result<Vec<Rule>> {
     let mut rules = Vec::new();
 
@@ -114,7 +123,7 @@ pub fn build_rules(cli: &Cli, theme: &Theme, ignore_case: bool) -> Result<Vec<Ru
     Ok(rules)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "tui"))]
 mod tests {
     use super::*;
     use clap::Parser;

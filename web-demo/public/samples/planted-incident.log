@@ -1,0 +1,69 @@
+# Synthetic checkout-api application log — CASE-2026-1013-8841
+# Host: api-7d9f8c4b2.example.com  Region: lab-us-east-1
+2026-10-13T14:02:01.120Z INFO  boot checkout-api v2.14.3 build=demo+fake sha=0000000
+2026-10-13T14:02:01.340Z INFO  listening on 0.0.0.0:8080 env=staging
+2026-10-13T14:02:01.410Z INFO  metrics exporter ready endpoint=/metrics
+2026-10-13T14:18:44.002Z INFO  request id=req-1001 method=GET path=/healthz status=200 dur_ms=2
+2026-10-13T14:19:02.118Z INFO  request id=req-1044 method=POST path=/v1/checkout status=200 dur_ms=88
+2026-10-13T14:21:17.551Z WARN  request id=req-1802 method=POST path=/v1/checkout status=200 dur_ms=940 queue_wait_ms=410
+2026-10-13T14:22:03.010Z INFO  gc pause_ms=120 heap_used_mb=1480 heap_max_mb=1536
+2026-10-13T14:22:41.774Z WARN  slow handler path=/v1/checkout dur_ms=2100 deps=pricing,inventory
+2026-10-13T14:23:05.002Z ERROR out of memory while building request cache
+2026-10-13T14:23:05.040Z ERROR request id=req-2210 path=/v1/checkout status=500 dur_ms=12
+2026-10-13T14:23:05.088Z ERROR request id=req-2211 path=/v1/checkout status=500 dur_ms=9
+2026-10-13T14:23:05.201Z FATAL unhandled exception in api worker (core dumped)
+2026-10-13T14:23:05.210Z ERROR Traceback (most recent call last):
+2026-10-13T14:23:05.211Z ERROR   File "/opt/checkout-api/worker.py", line 88, in handle
+2026-10-13T14:23:05.212Z ERROR     cache.materialize(cart_id)
+2026-10-13T14:23:05.213Z ERROR MemoryError: unable to allocate 64 MiB arena
+2026-10-13T14:23:06.001Z INFO  supervisor: waiting for worker exit code
+# Synthetic kubectl get events --namespace checkout-staging
+# Cluster: lab-eks-demo.example.com  Captured: 2026-10-13T14:30:00Z
+2026-10-13T14:10:01Z Normal   Scheduled  pod/api-7d9f8c4b2-xk2qz  Successfully assigned checkout-staging/api-7d9f8c4b2-xk2qz to ip-192-0-2-44.example.com
+2026-10-13T14:10:02Z Normal   Pulling    pod/api-7d9f8c4b2-xk2qz  Pulling image "registry.example.com/checkout-api:2.14.3"
+2026-10-13T14:10:08Z Normal   Created    pod/api-7d9f8c4b2-xk2qz  Created container api
+2026-10-13T14:10:08Z Normal   Started    pod/api-7d9f8c4b2-xk2qz  Started container api
+2026-10-13T14:18:00Z Normal   ScalingReplicaSet  deployment/api  Scaled up replica set api-7d9f8c4b2 to 2
+2026-10-13T14:22:50Z Warning  Unhealthy  pod/api-7d9f8c4b2-xk2qz  Readiness probe failed: HTTP probe failed with statuscode: 503
+2026-10-13T14:23:05Z Normal   Killing    pod/api-7d9f8c4b2-xk2qz  Container api was OOMKilled
+2026-10-13T14:23:06Z Warning  BackOff    pod/api-7d9f8c4b2-xk2qz  Back-off restarting failed container
+2026-10-13T14:24:30Z Warning  Failed     pod/api-7d9f8c4b2-xk2qz  pod api-7d9f8c4b2-xk2qz entered CrashLoopBackOff after OOMKilled
+2026-10-13T14:25:01Z Normal   SuccessfulCreate  replicaset/api-7d9f8c4b2  Created pod: api-7d9f8c4b2-m9pls
+# Synthetic nginx error log — edge.example.com (staging VIP 198.51.100.10)
+2026/10/13 14:18:01 [notice] 11#11: using the "epoll" event method
+2026/10/13 14:18:01 [notice] 11#11: start worker processes
+2026/10/13 14:20:14 [info] 22#22: *1901 client 203.0.113.40 closed keepalive connection
+2026/10/13 14:22:55 [warn] 22#22: *2011 upstream server temporarily disabled while connecting to upstream
+2026/10/13 14:23:06 [error] 22#22: *2102 upstream timed out while reading response header from upstream, client: 203.0.113.55, server: checkout.example.com, request: "POST /v1/checkout HTTP/1.1", upstream: "http://192.0.2.44:8080/v1/checkout"
+2026/10/13 14:23:08 [error] 22#22: *2108 no live upstreams while connecting to upstream, client: 203.0.113.56, server: checkout.example.com, request: "POST /v1/checkout HTTP/1.1"
+2026/10/13 14:23:11 [warn] 22#22: *2114 connection refused to api.internal.example.com:8080
+2026/10/13 14:24:02 [info] 22#22: *2201 client 203.0.113.59 closed keepalive connection
+# Synthetic PostgreSQL log — db-checkout.example.com (198.51.100.20)
+# Cluster: staging-pg-demo  Role: primary
+2026-10-13 14:10:01.001 UTC [1] LOG:  database system is ready to accept connections
+2026-10-13 14:18:12.440 UTC [8821] LOG:  checkpoint starting: time
+2026-10-13 14:18:14.102 UTC [8821] LOG:  checkpoint complete: wrote 42 buffers (0.1%)
+2026-10-13 14:22:48.011 UTC [9102] LOG:  connection received: host=192.0.2.44 port=45122
+2026-10-13 14:22:48.055 UTC [9102] LOG:  connection authorized: user=app database=checkout_staging
+2026-10-13 14:23:06.880 UTC [9102] ERROR:  deadlock detected
+2026-10-13 14:23:06.880 UTC [9102] DETAIL:  Process 9102 waits for ShareLock on transaction 90111; blocked by process 9108.
+2026-10-13 14:23:08.002 UTC [9121] LOG:  could not connect to server: Connection refused
+2026-10-13 14:23:08.002 UTC [9121] HINT:  Is the server running on host "api.internal.example.com" (192.0.2.44) and accepting TCP/IP connections?
+2026-10-13 14:23:40.500 UTC [1] LOG:  incomplete startup packet
+# Synthetic MySQL log — inventory-cache.example.com (198.51.100.21)
+# Role: inventory read-model used by checkout-api
+2026-10-13T14:10:00.100101Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.36-demo'
+2026-10-13T14:18:22.000201Z 12 [Note] [MY-010914] [Server] Aborted connection 12 to db: 'inventory' user: 'app' host: '192.0.2.44' (Got an error reading communication packets)
+2026-10-13T14:22:59.100301Z 0 [Warning] [MY-010055] [Server] IP address '203.0.113.99' could not be resolved: Name or service not known
+2026-10-13T14:23:07.200401Z 0 [Error] [MY-000000] [Server] mysqld: too many connections
+2026-10-13T14:23:08.400601Z 0 [Warning] [MY-010914] [Server] Aborted connection 104 to db: 'inventory' user: 'app' host: '192.0.2.45' (Got timeout reading communication packets)
+# Synthetic journalctl -u api.service excerpt — node ip-192-0-2-44.example.com
+Oct 13 14:10:01 ip-192-0-2-44 systemd[1]: Started api.service - Checkout API worker.
+Oct 13 14:18:00 ip-192-0-2-44 kubelet[1102]: I1013 14:18:00.100001 syncing pod api-7d9f8c4b2-xk2qz
+Oct 13 14:22:50 ip-192-0-2-44 kubelet[1102]: W1013 14:22:50.200002 Probe failed readiness for api
+Oct 13 14:23:05 ip-192-0-2-44 containerd[981]: containerd: failed to create shim task for container api
+Oct 13 14:23:05 ip-192-0-2-44 containerd[981]: oci runtime error: container failed to start
+Oct 13 14:23:06 ip-192-0-2-44 systemd[1]: api.service: Main process exited, code=killed, status=9/KILL
+Oct 13 14:23:20 ip-192-0-2-44 systemd[1]: failed to start api.service
+Oct 13 14:23:20 ip-192-0-2-44 systemd[1]: api.service: Scheduled restart job, restart counter is at 3.
+Oct 13 14:24:01 ip-192-0-2-44 chronyd[552]: Selected source 192.0.2.1

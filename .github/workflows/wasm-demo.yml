@@ -1,0 +1,100 @@
+# @polsia:user-owned — WASM browser demo build + headless checks.
+name: WASM demo
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "traceglass/**"
+      - "web-demo/**"
+      - ".github/workflows/wasm-demo.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "traceglass/**"
+      - "web-demo/**"
+      - ".github/workflows/wasm-demo.yml"
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  wasm-demo:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable branch @ 2026
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            traceglass
+            traceglass/wasm
+          shared-key: wasm-demo
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Format (wasm-scan + wasm crate)
+        run: |
+          cargo fmt --manifest-path traceglass/Cargo.toml --all -- --check
+          cargo fmt --manifest-path traceglass/wasm/Cargo.toml --all -- --check
+
+      - name: Clippy wasm-scan library
+        working-directory: traceglass
+        run: cargo clippy --no-default-features --features wasm-scan --locked -- -D warnings
+
+      - name: Clippy wasm bindings
+        working-directory: traceglass/wasm
+        run: cargo clippy --target wasm32-unknown-unknown --locked -- -D warnings
+
+      - name: Unit test scan API (incl. demo-bundle)
+        working-directory: traceglass
+        run: cargo test --no-default-features --features wasm-scan --locked scan::
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web-demo/package-lock.json
+
+      - name: Install web-demo deps
+        working-directory: web-demo
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: web-demo
+        run: npx playwright install --with-deps chromium
+
+      - name: Build wasm + static demo
+        working-directory: web-demo
+        run: npm run build
+
+      - name: Headless demo tests
+        working-directory: web-demo
+        run: npx playwright test
+
+      - name: Upload perf / size artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wasm-demo-artifacts
+          path: |
+            web-demo/artifacts/
+            web-demo/pkg/wasm-size-*.txt
+          if-no-files-found: warn

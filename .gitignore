@@ -36,6 +36,15 @@ lerna-debug.log*
 # Testing
 coverage/
 
+# TraceGlass WASM demo (generated)
+web-demo/node_modules/
+web-demo/dist/
+web-demo/pkg/
+web-demo/artifacts/
+web-demo/test-results/
+web-demo/playwright-report/
+
+
 # TypeScript
 *.tsbuildinfo
 

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+    />
+    <meta name="description" content="TraceGlass runs entirely in your browser via WebAssembly. Your log never leaves your device." />
+    <title>TraceGlass — browser demo</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="top">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">◈</span>
+        <div>
+          <p class="brand-name">TraceGlass</p>
+          <p class="brand-sub">Client-side WASM demo</p>
+        </div>
+      </div>
+      <p class="privacy" role="note">
+        Your log never leaves your browser. Nothing is uploaded; closing or refreshing the page discards everything.
+      </p>
+    </header>
+
+    <main id="main">
+      <section class="panel" aria-labelledby="replay-title">
+        <div class="panel-head">
+          <h1 id="replay-title">Planted-incident replay</h1>
+          <p class="lede">
+            Real findings from the sample support bundle, produced by the WASM scanner — not canned output.
+          </p>
+        </div>
+        <div class="controls">
+          <button type="button" id="btn-replay" class="btn primary">Run sample scan</button>
+          <span id="replay-meta" class="meta" aria-live="polite"></span>
+        </div>
+        <div class="term" id="term" aria-live="polite" aria-relevant="additions">
+          <div class="term-bar">
+            <span>traceglass — incident-reliability</span>
+            <span id="term-status">idle</span>
+          </div>
+          <pre id="term-body" class="term-body"></pre>
+        </div>
+        <div class="findings" id="replay-findings" hidden>
+          <h2>Findings</h2>
+          <ul id="replay-list"></ul>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="try-title">
+        <div class="panel-head">
+          <h1 id="try-title">Try your own log</h1>
+          <p class="lede">
+            Pick or drop a text log. It is read with the File API and scanned locally in WASM.
+            Zip / directory ingest is not in this browser build.
+          </p>
+        </div>
+        <div
+          id="dropzone"
+          class="dropzone"
+          tabindex="0"
+          role="button"
+          aria-label="Drop a log file here or press to choose"
+        >
+          <p>Drop a <code>.log</code> / text file here, or click to choose</p>
+          <input id="file-input" type="file" accept=".log,.txt,.json,.ndjson,.jsonl,.csv,.csb,text/*" hidden />
+        </div>
+        <div class="controls">
+          <span id="try-meta" class="meta" aria-live="polite"></span>
+        </div>
+        <div class="findings" id="try-findings" hidden>
+          <h2>Your findings</h2>
+          <ul id="try-list"></ul>
+        </div>
+      </section>
+
+      <section class="panel muted" aria-labelledby="limits-title">
+        <h2 id="limits-title">What this demo includes</h2>
+        <ul class="limits">
+          <li>Included: built-in signature library, lenses, plain/JSON/NDJSON/CSV line scan</li>
+          <li>Excluded: filesystem walks, zip extraction, interactive TUI, watchlist/config files</li>
+          <li>Privacy: strict CSP (<code>connect-src 'self'</code> only to fetch the local <code>.wasm</code>) — no analytics, no third-party scripts, no log upload</li>
+        </ul>
+        <pre id="caps" class="caps" hidden></pre>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>Portable static demo for the future <code>dorman/traceglass-site</code> repo. Analysis runs in WebAssembly.</p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

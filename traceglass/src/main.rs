@@ -1,20 +1,3 @@
-mod app;
-mod browser;
-mod cli;
-mod clipboard;
-mod config;
-mod event;
-mod ingest;
-mod lenses;
-mod output;
-mod records;
-mod rules;
-mod signatures;
-mod theme;
-mod ui;
-mod walkthrough;
-mod watchlist;
-
 use std::io::{self, IsTerminal, Read};
 
 use anyhow::{Context, Result, bail};
@@ -24,8 +7,11 @@ use crossterm::event::{
 };
 use crossterm::execute;
 
-use app::App;
-use cli::Cli;
+use traceglass::app::App;
+use traceglass::cli::Cli;
+use traceglass::{
+    config, event, ingest, lenses, output, rules, signatures, theme, walkthrough, watchlist,
+};
 
 fn selected_lens(cli: &Cli) -> lenses::Selection {
     match lenses::Selection::from_id(cli.lens.as_deref().unwrap_or("general-triage")) {
@@ -112,7 +98,7 @@ fn main() -> Result<()> {
         || !io::stdin().is_terminal()
         || (!cli.files.is_empty() && !io::stdout().is_terminal());
     if non_interactive {
-        let format = cli.format.unwrap_or(cli::OutputFormat::Raw);
+        let format = cli.format.unwrap_or(traceglass::cli::OutputFormat::Raw);
         let lens = selected_lens(&cli);
         let sources = read_machine_sources(&cli)?;
         let library = signatures::Library::builtin();

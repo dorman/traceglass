@@ -1,0 +1,9 @@
+node_modules/
+dist/
+pkg/
+artifacts/
+test-results/
+playwright-report/
+blob-report/
+.vite/
+*.log

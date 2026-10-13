@@ -1,8 +1,10 @@
-use ratatui::style::Color;
 use regex::RegexSet;
 use serde::Serialize;
 
 use crate::rules;
+
+#[cfg(feature = "tui")]
+use ratatui::style::Color;
 
 /// Severity of a scan finding, ordered low → high so `max`/sort work directly.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -28,6 +30,7 @@ impl Severity {
     /// Truecolor Signal severity colors (Direction B). Prefer
     /// [`crate::theme::Theme::severity_color`] at paint time so Ansi16/256
     /// hand-mapped Named fallbacks are honored.
+    #[cfg(feature = "tui")]
     #[allow(dead_code)]
     pub fn color(self) -> Color {
         match self {
@@ -40,6 +43,7 @@ impl Severity {
     }
 
     /// Hand-mapped Ansi16 Named colors for this severity (HoD Signal table).
+    #[cfg(feature = "tui")]
     #[allow(dead_code)]
     pub fn named_color(self) -> Color {
         match self {
