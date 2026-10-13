@@ -5,24 +5,25 @@
 1. Converted `traceglass` from binary-only to **lib + bin**.
 2. Feature-gated native-only pieces:
    - `tui` → crossterm/ratatui + UI modules
-   - `fs` → zip ingest, config, watchlist
+   - `fs` → on-disk zip ingest, config, watchlist
    - `cli` → clap machine entrypoint
-   - `wasm-scan` → in-memory scanner only
+   - `wasm-scan` → in-memory scanner + in-memory zip
 3. Added `traceglass::scan` (shared by CLI findings path and WASM).
 4. Added `traceglass/wasm` (`wasm-bindgen`) and portable `web-demo/`.
 
 ## Included
 
-- Full built-in signature library + lenses
+- Full built-in signature library + lenses (**same code / catalog as CLI**)
 - Plain / JSON / NDJSON / CSV structured enrichment
+- In-memory ZIP support-bundle scan (`zip_mem`)
 - Planted-incident sample replay (real WASM findings)
-- Try-your-own via File API (no upload)
-- Strict CSP, no analytics / third-party scripts
+- Try-your-own via File API (log or zip, no upload)
+- Strict CSP, no analytics / third-party / CDN scripts or webfonts
 
 ## Excluded (honest)
 
 - Directory walks / filesystem browser
-- Zip extraction
+- On-disk zip temp extraction (CLI path)
 - Interactive TUI
 - Watchlist / config persistence
 - Worker threads (native scanner is cooperative on the UI thread anyway)
@@ -37,5 +38,7 @@ from draft PR #52** (`cursor/demo-bundle-ba9e`) because that sample is not on
 
 `connect-src 'self'` is required so wasm-bindgen can `fetch` the same-origin
 `.wasm` at startup. After load, Playwright asserts **zero** further network
-requests during sample and user-file scans. Ideal `connect-src 'none'` would
-need inlining the wasm bytes (possible follow-up).
+requests during sample, user-file, and zip scans. Ideal `connect-src 'none'`
+would need inlining the wasm bytes (possible follow-up).
+
+See also `COPY_VERIFICATION.md` for marketing-copy claim checks.

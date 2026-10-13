@@ -29,6 +29,20 @@ pub fn scan_to_findings_json(sources: &[ScanSource], lens_id: &str) -> Result<St
     serialize_findings_document(&records)
 }
 
+/// Scan a zip support bundle from raw bytes (browser File API / WASM path).
+#[cfg(feature = "zip")]
+pub fn scan_zip_bytes_to_findings_json(archive_bytes: &[u8], lens_id: &str) -> Result<String> {
+    let sources = crate::zip_mem::sources_from_zip_bytes(archive_bytes)?;
+    scan_to_findings_json(&sources, lens_id)
+}
+
+/// Scan a zip and return compact finding rows (for WASM UI).
+#[cfg(feature = "zip")]
+pub fn scan_zip_bytes_findings(archive_bytes: &[u8], lens_id: &str) -> Result<Vec<FindingView>> {
+    let sources = crate::zip_mem::sources_from_zip_bytes(archive_bytes)?;
+    scan_findings(&sources, lens_id)
+}
+
 /// Scan and return only the finding annotations (no full record dump).
 pub fn scan_findings(sources: &[ScanSource], lens_id: &str) -> Result<Vec<FindingView>> {
     let lens = resolve_lens(lens_id)?;

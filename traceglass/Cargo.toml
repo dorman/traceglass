@@ -29,11 +29,13 @@ default = ["cli", "tui", "fs"]
 cli = ["dep:clap"]
 # Interactive terminal UI.
 tui = ["dep:crossterm", "dep:ratatui", "cli"]
-# Filesystem ingest, zip extraction, config/watchlist persistence.
-fs = ["dep:zip"]
-# Browser / wasm32 scanner surface (no TUI, no filesystem, no zip).
-# Enables the same in-memory scan API the CLI uses; does not add deps.
-wasm-scan = []
+# Enables the `zip` crate (on-disk via `fs`, in-memory via `wasm-scan`).
+zip = ["dep:zip"]
+# Filesystem ingest, on-disk zip extraction, config/watchlist persistence.
+fs = ["zip"]
+# Browser / wasm32 scanner surface (no TUI, no filesystem temp dirs).
+# Includes in-memory zip → text extraction for support-bundle drops.
+wasm-scan = ["zip"]
 
 [dependencies]
 anyhow = "1.0.104"

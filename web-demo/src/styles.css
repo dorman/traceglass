@@ -95,6 +95,29 @@ body {
   font-size: 0.9rem;
 }
 
+.hero-copy {
+  max-width: 46rem;
+}
+
+.hero-title {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.6vw, 1.85rem);
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  font-weight: 650;
+}
+
+.hero-sub {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+  max-width: 42rem;
+}
+
+.hero-ctas {
+  margin: 0;
+}
+
 .privacy {
   margin: 0;
   max-width: 46rem;
@@ -103,6 +126,20 @@ body {
   background: color-mix(in srgb, var(--accent) 12%, var(--bg2));
   color: var(--ink);
   font-size: 0.95rem;
+}
+
+.privacy.inline {
+  margin-top: 0.85rem;
+  max-width: none;
+}
+
+.after-demo {
+  margin-top: 1rem;
+}
+
+a.btn {
+  text-decoration: none;
+  display: inline-block;
 }
 
 main {

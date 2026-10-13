@@ -122,6 +122,60 @@ test("try-your-own path scans a File without uploading", async ({ page }) => {
   expect(requests, `upload-like requests: ${requests.join(", ")}`).toEqual([]);
 });
 
+test("zip support-bundle scans in WASM without network", async ({ page }) => {
+  const requests: string[] = [];
+  page.on("request", (req) => requests.push(req.url()));
+
+  await page.goto("/");
+  await page.waitForFunction(() => Boolean(window.__tgDemo));
+  await page.waitForTimeout(500);
+  requests.length = 0;
+
+  // Prefer the repo-vendored demo-bundle.zip (same planted incident as PR #52).
+  const zipPath = join(root, "../traceglass/samples/demo-bundle.zip");
+  const zipBytes = readFileSync(zipPath);
+
+  const result = await page.evaluate(async (b64) => {
+    const raw = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return window.__tgDemo!.scanZipBytes(raw, "incident-reliability");
+  }, zipBytes.toString("base64"));
+
+  expect(result.findings.length).toBeGreaterThanOrEqual(10);
+  const ids = new Set(result.findings.map((f) => f.signature_id));
+  for (const required of REQUIRED) {
+    expect(ids.has(required), `zip missing ${required}`).toBeTruthy();
+  }
+  expect(requests, `zip scan network: ${requests.join(", ")}`).toEqual([]);
+
+  writeFileSync(
+    join(artifacts, "zip-scan.json"),
+    JSON.stringify(
+      {
+        findingCount: result.findings.length,
+        elapsedMs: result.meta.elapsed_ms,
+        sourceCount: result.meta.source_count,
+        postLoadRequestCount: requests.length,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+});
+
+test("page CTAs and privacy copy are present", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Watch the replay" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Scan a log in your browser" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Watch the replay" })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Your file stays in this browser tab. It's never uploaded, so there's nothing for us to store or delete.",
+    ).first(),
+  ).toBeVisible();
+});
+
 test("50MB synthetic log scan timing in Chromium", async ({ page }) => {
   test.setTimeout(180_000);
   await page.goto("/");

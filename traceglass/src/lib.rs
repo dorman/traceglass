@@ -1,14 +1,17 @@
 //! TraceGlass library surface.
 //!
 //! The default feature set builds the full CLI/TUI. The `wasm-scan` feature
-//! exposes only the in-memory signature scanner used by the browser demo:
-//! no filesystem, zip extraction, terminal UI, or threads.
+//! exposes the in-memory signature scanner used by the browser demo: no
+//! filesystem walks, no TUI, and zip handling is in-memory only (no temp dirs).
 
 pub mod lenses;
 pub mod records;
 pub mod rules;
 pub mod scan;
 pub mod signatures;
+
+#[cfg(feature = "zip")]
+pub mod zip_mem;
 
 #[cfg(test)]
 mod scan_demo_bundle;
@@ -47,7 +50,8 @@ pub fn build_capabilities() -> BuildCapabilities {
         lenses: true,
         structured_formats: cfg!(feature = "cli") || cfg!(feature = "wasm-scan"),
         filesystem_ingest: cfg!(feature = "fs"),
-        zip_extract: cfg!(feature = "fs"),
+        zip_extract: cfg!(feature = "zip"),
+        zip_in_memory: cfg!(feature = "wasm-scan"),
         interactive_tui: cfg!(feature = "tui"),
         machine_cli: cfg!(feature = "cli"),
     }
@@ -60,6 +64,7 @@ pub struct BuildCapabilities {
     pub structured_formats: bool,
     pub filesystem_ingest: bool,
     pub zip_extract: bool,
+    pub zip_in_memory: bool,
     pub interactive_tui: bool,
     pub machine_cli: bool,
 }

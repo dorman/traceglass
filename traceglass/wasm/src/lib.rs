@@ -1,11 +1,8 @@
 //! Browser bindings for the TraceGlass in-memory scanner.
 //!
-//! Excluded from this build (see parent crate features):
-//! - filesystem ingest / directory walks
-//! - zip extraction
-//! - interactive TUI (crossterm / ratatui)
-//! - config / watchlist persistence
-//! - threads (the native scanner is cooperative anyway)
+//! Same signature library + lens catalog as the CLI (`Library::builtin`,
+//! `lenses/v0.1.0/catalog.json`). Excluded: filesystem walks, on-disk temp
+//! extract, interactive TUI, watchlist/config persistence, threads.
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -23,6 +20,12 @@ pub fn start() {
 #[wasm_bindgen]
 pub fn capabilities_json() -> String {
     serde_json::to_string(&build_capabilities()).expect("capabilities serialize")
+}
+
+/// Embedded lens catalog version string (must match CLI).
+#[wasm_bindgen]
+pub fn lens_catalog_version() -> String {
+    traceglass::lenses::CATALOG_VERSION.to_string()
 }
 
 #[derive(Serialize)]
@@ -86,6 +89,37 @@ pub fn scan_with_meta(sources_json: &str, lens_id: &str) -> Result<JsValue, JsVa
         .collect();
 
     let started = js_sys::Date::now();
+    let findings =
+        scan::scan_findings(&sources, lens_id).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let elapsed_ms = js_sys::Date::now() - started;
+
+    #[derive(Serialize)]
+    struct Out {
+        findings: Vec<scan::FindingView>,
+        meta: ScanMeta,
+    }
+
+    let out = Out {
+        meta: ScanMeta {
+            source_count,
+            total_bytes,
+            elapsed_ms,
+            finding_count: findings.len(),
+            capabilities: build_capabilities(),
+        },
+        findings,
+    };
+    serde_wasm_bindgen::to_value(&out).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Scan a ZIP support bundle from raw bytes (File.arrayBuffer in the browser).
+#[wasm_bindgen]
+pub fn scan_zip_bytes(data: &[u8], lens_id: &str) -> Result<JsValue, JsValue> {
+    let started = js_sys::Date::now();
+    let sources = traceglass::zip_mem::sources_from_zip_bytes(data)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let total_bytes: usize = sources.iter().map(|s| s.content.len()).sum();
+    let source_count = sources.len();
     let findings =
         scan::scan_findings(&sources, lens_id).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let elapsed_ms = js_sys::Date::now() - started;

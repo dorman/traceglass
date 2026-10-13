@@ -1,6 +1,7 @@
 import init, {
   capabilities_json,
   scan_with_meta,
+  scan_zip_bytes,
 } from "../pkg/traceglass_wasm.js";
 import wasmUrl from "../pkg/traceglass_wasm_bg.wasm?url";
 
@@ -220,6 +221,14 @@ async function runReplay(): Promise<void> {
   }
 }
 
+function isZipFile(file: File): boolean {
+  return (
+    file.name.toLowerCase().endsWith(".zip") ||
+    file.type === "application/zip" ||
+    file.type === "application/x-zip-compressed"
+  );
+}
+
 async function scanUserFile(file: File): Promise<void> {
   const meta = $("try-meta");
   const panel = $("try-findings");
@@ -228,22 +237,33 @@ async function scanUserFile(file: File): Promise<void> {
   panel.hidden = true;
 
   await ensureWasm();
-  const content = await file.text();
-  if (content.length > 50 * 1024 * 1024) {
-    meta.textContent = "file exceeds 50 MiB demo limit";
-    return;
-  }
 
   const started = performance.now();
-  const rich = (await scan_with_meta(
-    JSON.stringify([{ name: file.name, content }]),
-    LENS,
-  )) as ScanWithMeta;
-  const elapsed = performance.now() - started;
+  let rich: ScanWithMeta;
 
+  if (isZipFile(file)) {
+    if (file.size > 256 * 1024 * 1024) {
+      meta.textContent = "zip exceeds 256 MiB demo limit";
+      return;
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    rich = (await scan_zip_bytes(bytes, LENS)) as ScanWithMeta;
+  } else {
+    const content = await file.text();
+    if (content.length > 50 * 1024 * 1024) {
+      meta.textContent = "file exceeds 50 MiB demo limit";
+      return;
+    }
+    rich = (await scan_with_meta(
+      JSON.stringify([{ name: file.name, content }]),
+      LENS,
+    )) as ScanWithMeta;
+  }
+
+  const elapsed = performance.now() - started;
   renderFindings(list, rich.findings);
   panel.hidden = false;
-  meta.textContent = `${file.name}: ${rich.findings.length} findings · ${elapsed.toFixed(1)} ms · ${content.length.toLocaleString()} bytes (local only)`;
+  meta.textContent = `${file.name}: ${rich.findings.length} findings · ${elapsed.toFixed(1)} ms · ${rich.meta.total_bytes.toLocaleString()} bytes across ${rich.meta.source_count} source(s) (local only)`;
 }
 
 function wireDropzone(): void {
@@ -299,6 +319,7 @@ declare global {
         sources: { name: string; content: string }[],
         lens?: string,
       ) => Promise<ScanWithMeta>;
+      scanZipBytes: (bytes: Uint8Array, lens?: string) => Promise<ScanWithMeta>;
       requiredSignatures: typeof REQUIRED_SIGNATURES;
     };
   }
@@ -316,5 +337,9 @@ window.__tgDemo = {
   async scanSources(sources, lens = LENS) {
     await ensureWasm();
     return (await scan_with_meta(JSON.stringify(sources), lens)) as ScanWithMeta;
+  },
+  async scanZipBytes(bytes, lens = LENS) {
+    await ensureWasm();
+    return (await scan_zip_bytes(bytes, lens)) as ScanWithMeta;
   },
 };
