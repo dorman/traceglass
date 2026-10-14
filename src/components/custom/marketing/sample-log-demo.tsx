@@ -277,7 +277,7 @@ function Status({ scene }: { scene: Scene }) {
     <div className="signal-tui__status">
       <span className="signal-tui__mode">{mode}</span>
       <span className="signal-tui__status-mid">
-        7 findings · press F to review
+        7 findings · press s to review
         {scene === 'search' ? (
           <>
             {' · '}
