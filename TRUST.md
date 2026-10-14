@@ -7,7 +7,9 @@ answer to: *does this tool phone home with customer logs?*
 
 This page is limited to facts that can be checked in the current source. Deeper
 threat analysis lives in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md). Release
-signing steps live in [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
+readiness lives in [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
+Operator steps for the signed GitHub Release path (secret, rc tag, installer
+smoke) live in [`RELEASING.md`](RELEASING.md).
 
 ---
 
@@ -18,6 +20,7 @@ signing steps live in [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
 | **`traceglass` scanner / TUI** (the tool you use on a log bundle) | **No.** Scanning and viewing are local-only. | Reads the files/folders/ZIPs you open; optional local config under `~/.config/traceglass` (or `TRACEGLASS_CONFIG_DIR`). |
 | **`traceglass-installer`** (one-click install from GitHub Releases) | **Yes.** It downloads the signed release manifest and payloads over HTTPS. | Verifies Ed25519 signatures and SHA-256, then installs for the current user. |
 | **Marketing website** (this repo’s Next.js app) | Separate from the CLI. Not used when you scan logs offline. | N/A to air-gapped triage. |
+| **Optional WASM browser demo** (`web-demo/`) | Loads same-origin `.wasm` at startup; scans stay in-tab (no upload). | Not required for offline CLI triage; see threat model + `web-demo/POC_NOTES.md`. |
 
 Approved summary again: **No AI, no network access needed to scan. Nothing is uploaded, no telemetry, no phone-home.**
 
@@ -103,14 +106,14 @@ When a GitHub Release is published by the signed pipeline:
    `traceglass-release.json.sig` with the installer/payload for your target.
 2. Verify the Ed25519 signatures against the **public** key embedded in
    `traceglass/installer/src/lib.rs` (`SIGNING_PUBLIC_KEY_B64` /
-   `SIGNING_KEY_ID`).
+   `SIGNING_KEY_ID` = `traceglass-ed25519-26deb421`).
 3. Confirm SHA-256 digests match `SHA256SUMS`.
-4. Prefer the native installer (it performs these checks before install) or
-   follow the contract in `traceglass/release/README.md`.
+4. Prefer the native installer (it performs these checks before install), or
+   follow [`RELEASING.md`](RELEASING.md) and `traceglass/release/README.md`.
 
 Windows Authenticode / macOS Developer ID + notarization are **separate** from
-this Ed25519 release layer and are only claimed when those publisher
-credentials exist (see the release checklist).
+this Ed25519 release layer and are **not** configured yet (see the release
+checklist and [`RELEASING.md`](RELEASING.md)).
 
 ---
 
@@ -120,5 +123,6 @@ credentials exist (see the release checklist).
 - It does not claim “no sockets at all” for the TUI (local `AF_UNIX` pairs exist).
 - It does not claim OS code signing (Authenticode / notarization) unless those
   pipelines are actually configured.
-- It does not cover a future in-browser WASM demo; that path must keep a strict
-  CSP and client-side-only processing (see the threat model).
+- It does not claim the optional WASM demo is a substitute for the offline CLI;
+  that path must keep a strict CSP and client-side-only processing (see the
+  threat model and `web-demo/POC_NOTES.md`).

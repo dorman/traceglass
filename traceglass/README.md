@@ -1,6 +1,6 @@
 # TraceGlass
 
-**Grammarly for logs** — a local Rust terminal UI that opens diagnostic logs,
+**A privacy-first log inspector** — a local Rust terminal UI that opens diagnostic logs,
 finds review signals, and helps you search, filter, and triage the evidence.
 Keyword and regex highlights are user-controlled entries in a local watchlist;
 curated built-in signatures are a separate versioned scan catalog. No AI,
@@ -37,9 +37,10 @@ shortcut, or opening a new terminal. A successful opt-in launch starts
 terminal can be opened, it prints the installed path and a manual command.
 
 The beta installer has no log upload, telemetry, service/daemon, or silent
-auto-update behavior. Ed25519 release signatures are publisher verification;
-Windows Authenticode, macOS Developer ID, and notarization are separate and
-are not claimed without their external credentials.
+auto-update behavior. Ed25519 release signatures (manifest + detached `.sig`
+files + `SHA256SUMS`) are publisher verification only. Release binaries are
+**not** Windows Authenticode-signed or macOS Developer ID / notarized yet.
+See `/RELEASING.md` for cutting an rc tag and running the installer smoke test.
 
 The release pairs are Linux glibc x86_64 (`traceglass-installer-x86_64-unknown-linux-gnu` plus a `.tar.gz` payload), macOS Apple silicon (`traceglass-installer-aarch64-apple-darwin` plus a `.tar.gz` payload), macOS Intel (`traceglass-installer-x86_64-apple-darwin` plus a `.tar.gz` payload), and Windows x86_64 (`traceglass-installer-x86_64-pc-windows-msvc.exe` plus a `.zip` payload).
 
@@ -214,3 +215,7 @@ cargo fmt --check
 
 The fixture and mode matrix is documented in [`tests/README.md`](tests/README.md).
 Resource limits are documented in [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
+
+## License
+
+MIT License. Copyright (c) 2026 TraceGlass. See [`LICENSE`](LICENSE).

@@ -40,13 +40,15 @@ jobs:
         components: clippy, rustfmt
 
     - name: Cache cargo
-      uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
         workspaces: traceglass
 
     - name: Format
       working-directory: traceglass
-      run: cargo fmt --all -- --check
+      run: |
+        cargo fmt --all -- --check
+        cargo fmt --manifest-path installer/Cargo.toml --all -- --check
 
     - name: Clippy
       working-directory: traceglass
@@ -56,13 +58,19 @@ jobs:
       working-directory: traceglass
       run: cargo test --locked --verbose
 
+    - name: Installer tests (signature verify + wrong-key reject)
+      working-directory: traceglass
+      run: |
+        cargo test --manifest-path installer/Cargo.toml --locked --verbose
+        cargo clippy --manifest-path installer/Cargo.toml --all-targets --locked -- -D warnings
+
     - name: Release build
       working-directory: traceglass
       run: cargo build --release --locked --verbose
 
     - name: Installer build
       working-directory: traceglass
-      run: cargo build --manifest-path installer/Cargo.toml --release
+      run: cargo build --manifest-path installer/Cargo.toml --release --locked
 
     - name: Validate package contract
       if: runner.os == 'Linux'
@@ -96,7 +104,7 @@ jobs:
         toolchain: stable
 
     - name: Cache cargo
-      uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
         shared-key: audit
         workspaces: traceglass
@@ -133,7 +141,7 @@ jobs:
         toolchain: stable
 
     - name: Cache cargo
-      uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
         shared-key: zizmor
 

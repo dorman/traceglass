@@ -1,0 +1,12 @@
+# Synthetic kubectl get events --namespace checkout-staging
+# Cluster: lab-eks-demo.example.com  Captured: 2026-10-13T14:30:00Z
+2026-10-13T14:10:01Z Normal   Scheduled  pod/api-7d9f8c4b2-xk2qz  Successfully assigned checkout-staging/api-7d9f8c4b2-xk2qz to ip-192-0-2-44.example.com
+2026-10-13T14:10:02Z Normal   Pulling    pod/api-7d9f8c4b2-xk2qz  Pulling image "registry.example.com/checkout-api:2.14.3"
+2026-10-13T14:10:08Z Normal   Created    pod/api-7d9f8c4b2-xk2qz  Created container api
+2026-10-13T14:10:08Z Normal   Started    pod/api-7d9f8c4b2-xk2qz  Started container api
+2026-10-13T14:18:00Z Normal   ScalingReplicaSet  deployment/api  Scaled up replica set api-7d9f8c4b2 to 2
+2026-10-13T14:22:50Z Warning  Unhealthy  pod/api-7d9f8c4b2-xk2qz  Readiness probe failed: HTTP probe failed with statuscode: 503
+2026-10-13T14:23:05Z Normal   Killing    pod/api-7d9f8c4b2-xk2qz  Container api was OOMKilled
+2026-10-13T14:23:06Z Warning  BackOff    pod/api-7d9f8c4b2-xk2qz  Back-off restarting failed container
+2026-10-13T14:24:30Z Warning  Failed     pod/api-7d9f8c4b2-xk2qz  pod api-7d9f8c4b2-xk2qz entered CrashLoopBackOff after OOMKilled
+2026-10-13T14:25:01Z Normal   SuccessfulCreate  replicaset/api-7d9f8c4b2  Created pod: api-7d9f8c4b2-m9pls

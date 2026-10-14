@@ -34,10 +34,10 @@ export const installCatalog = {
       manifestUrl: null,
       manifestSignatureUrl: null,
       signatureScheme: 'Ed25519' as const,
-      signingKeyId: 'traceglass-release-ed25519-2026',
+      signingKeyId: 'traceglass-ed25519-26deb421',
       status: 'not-published' as const,
       osSigningLimitations:
-        'Release signatures verify the publisher and payload. Windows Authenticode, macOS Developer ID, and notarization are separate publisher credentials and are not claimed until configured.',
+        'Release signatures verify the publisher and payload (Ed25519 + SHA256SUMS). Binaries are not Windows Authenticode-signed or macOS Developer ID / notarized yet; those are separate publisher credentials and are not claimed until configured.',
     },
     platforms: [
       unavailablePlatform({

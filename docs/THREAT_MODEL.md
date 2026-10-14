@@ -6,7 +6,8 @@ Scope: the Rust CLI/TUI (`traceglass/`), the native installer
 The marketing Next.js app is out of band except where it hosts download links.
 
 Related: [`../TRUST.md`](../TRUST.md) (plain-language privacy),
-[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) (v0.1.0-rc / v0.1.0 gates).
+[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) (v0.1.0-rc / v0.1.0 gates),
+[`../RELEASING.md`](../RELEASING.md) (signed-release operator runbook).
 
 ---
 
@@ -21,7 +22,7 @@ Related: [`../TRUST.md`](../TRUST.md) (plain-language privacy),
 | **Ed25519 release signing key** (`TRACEGLASS_RELEASE_SIGNING_KEY_PEM`) | Publisher authenticity for GitHub Release artifacts. |
 | Embedded **public key / key id** in the installer | Trust anchor for offline verification of downloads. |
 | Operator **terminal session** | Escape-sequence attacks can corrupt or hijack the TTY. |
-| Future **WASM demo** page | Brand trust; must not become an upload or exfil channel. |
+| Optional **WASM demo** (`web-demo/`) | Brand trust; must not become an upload or exfil channel. |
 
 ---
 
@@ -147,14 +148,14 @@ injects a backdoor.
 
 - Locked builds (`--locked`) in CI (`.github/workflows/rust.yml`, `release.yml`).
 - `cargo audit` job in Rust workflow.
-- Workflow pin-by-SHA style for actions (Dependabot bumps collected in PR #50).
+- Workflow pin-by-SHA style for actions (Dependabot / action bumps from #50 are
+  on `main`).
 - Scanner dependency surface intentionally small; network stack isolated to
   the installer crate.
 
 **Gaps / recommendations:**
 
-- Keep Dependabot (or equivalent) current; merge #50 before release pipeline
-  bumps that assume newer action majors.
+- Keep Dependabot (or equivalent) current as actions/crates continue to move.
 - Periodically re-run `cargo audit` / `cargo deny` if adopted.
 - Prefer minimal feature flags on `zip` / `reqwest` (already `default-features = false` where used).
 
@@ -166,10 +167,12 @@ malware that the installer trusts.
 **Mitigations:**
 
 - Private key only in GitHub Actions secrets; never committed
-  (`traceglass/release/README.md`, `release.yml`).
+  (`traceglass/release/README.md`, `release.yml`, [`RELEASING.md`](../RELEASING.md)).
 - Public key + key id embedded and reviewable in
-  `traceglass/installer/src/lib.rs`.
-- Workflow refuses to publish without the secret.
+  `traceglass/installer/src/lib.rs` (`SIGNING_KEY_ID` =
+  `traceglass-ed25519-26deb421`).
+- Workflow refuses to publish without the secret (early validate gate + OpenSSL
+  `pkeyutl -rawin` signing from #51).
 
 **Gaps / recommendations:**
 
@@ -198,22 +201,25 @@ wrong file.
 - Users who bypass the installer and run an unsigned binary from an untrusted
   mirror are outside this trust model.
 
-### 3.8 Future WASM web demo
+### 3.8 WASM web demo (on `main` via #54)
 
 **Threat:** A browser demo silently uploads logs, loads third-party scripts, or
 exfiltrates via loose CSP.
 
-**Required posture (when/if shipped; see open POC PR #54 notes):**
+**Current posture** (`web-demo/`, `web-demo/POC_NOTES.md`):
 
 - Process files **only in the browser** (File API); no upload endpoint.
-- **Strict CSP**: no analytics, no third-party/CDN scripts or webfonts;
-  prefer `connect-src 'none'` after wasm load (or equivalent proof).
-- Keep the same size caps spirit as the CLI (POC uses a 50 MiB guard).
-- Document clearly that the demo is still local-to-the-tab, not a substitute
-  for the offline CLI trust story in [`TRUST.md`](../TRUST.md).
+- Strict CSP with no analytics / third-party / CDN scripts or webfonts.
+- `connect-src 'self'` is required so wasm-bindgen can `fetch` the same-origin
+  `.wasm` at startup; Playwright asserts **zero** further network requests
+  during sample / user-file / zip scans. Ideal `connect-src 'none'` would need
+  inlining wasm bytes (documented follow-up).
+- Size caps in the same spirit as the CLI (50 MiB guard in the POC).
+- Demo is local-to-the-tab, not a substitute for the offline CLI trust story in
+  [`TRUST.md`](../TRUST.md).
 
-**Gap today:** WASM demo is not on `main`; do not advertise it as audited until
-CSP + no-network Playwright (or equivalent) gates are green on the hosting path.
+**Gap:** Do not advertise a public demo URL as fully audited until hosting is
+decided and CSP + no-network-after-load proofs stay green on that path.
 
 ---
 
@@ -227,23 +233,25 @@ CSP + no-network Playwright (or equivalent) gates are green on the hosting path.
 | Zip / size / open caps | `src/ingest.rs`, `src/app.rs` |
 | Regex budgets | `src/rules.rs` |
 | Installer verify | `installer/src/lib.rs`, `installer/src/main.rs` |
-| Signed release | `.github/workflows/release.yml`, `traceglass/release/README.md` |
-| Operator docs | `traceglass/docs/USER_GUIDE.md`, `TRUST.md` |
+| Signed release | `.github/workflows/release.yml`, `installer-smoke.yml`, `traceglass/release/README.md`, `RELEASING.md` |
+| Operator docs | `traceglass/docs/USER_GUIDE.md`, `TRUST.md`, `RELEASING.md` |
+| WASM demo CSP / no-upload | `web-demo/` (+ Playwright specs), `web-demo/POC_NOTES.md` |
 
 ---
 
 ## 5. Gaps and recommendations
 
-1. **Merge release-hardening PRs in order** (#50 → #51 → #53), then add
-   `TRACEGLASS_RELEASE_SIGNING_KEY_PEM` (owner-only). See
-   [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md).
-2. **OpenSSL Ed25519 `-rawin`:** required on OpenSSL 3 for correct pure-Ed25519
-   signatures; landed in PR #51. Do not cut an rc from `main` until that lands.
-3. **OS code signing:** Microsoft Artifact Signing / Authenticode and Apple
+1. **Add `TRACEGLASS_RELEASE_SIGNING_KEY_PEM`** (owner-only), then run the
+   `v0.1.0-rc` dry-run + Installer smoke on all four targets. See
+   [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) and
+   [`RELEASING.md`](../RELEASING.md). Release-hardening PRs #50/#51/#53 are
+   already on `main` (OpenSSL Ed25519 `-rawin` included).
+2. **OS code signing:** Microsoft Artifact Signing / Authenticode and Apple
    Developer ID + notarization are **not started**. Expect SmartScreen and
    Gatekeeper friction; document honestly.
-4. **Keep escape sanitization under test** in CI; treat regressions as
+3. **Keep escape sanitization under test** in CI; treat regressions as
    release-blocking.
-5. **WASM:** ship only behind strict CSP and a no-network-after-load proof.
-6. **Optional hardening:** markdown-escape export filenames/excerpts; consider
+4. **WASM:** keep strict CSP and no-network-after-load proofs before any public
+   demo URL; consider inlining wasm for `connect-src 'none'`.
+5. **Optional hardening:** markdown-escape export filenames/excerpts; consider
    `cargo deny` licenses/advisories gate; document key-rotation runbook.

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+    />
+    <meta name="description" content="TraceGlass runs entirely in your browser via WebAssembly. Your log never leaves your device." />
+    <title>TraceGlass — browser demo</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="top">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">◈</span>
+        <div>
+          <p class="brand-name">TraceGlass</p>
+          <p class="brand-sub">Client-side WASM demo</p>
+        </div>
+      </div>
+      <div class="hero-copy">
+        <h1 class="hero-title">See what deserves a human's attention first. Right here, in your browser.</h1>
+        <p class="hero-sub">
+          Watch TraceGlass triage a sample incident bundle, then drop in your own log or ZIP.
+          It's scanned on your device by the same engine as the CLI. Nothing leaves your machine.
+        </p>
+      </div>
+      <p class="privacy" role="note">
+        Your file stays in this browser tab. It's never uploaded, so there's nothing for us to store or delete.
+      </p>
+      <div class="controls hero-ctas">
+        <a class="btn primary" href="#replay">Watch the replay</a>
+        <a class="btn" href="#try">Scan a log in your browser</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="panel" id="replay" aria-labelledby="replay-title">
+        <div class="panel-head">
+          <h2 id="replay-title">Sample incident replay</h2>
+          <p class="lede">
+            A diagnostic bundle with one planted problem. Watch the findings get ranked, then jump to the line that matters.
+          </p>
+        </div>
+        <div class="controls">
+          <button type="button" id="btn-replay" class="btn primary">Watch the replay</button>
+          <span id="replay-meta" class="meta" aria-live="polite"></span>
+        </div>
+        <div class="term" id="term" aria-live="polite" aria-relevant="additions">
+          <div class="term-bar">
+            <span>traceglass — incident-reliability</span>
+            <span id="term-status">idle</span>
+          </div>
+          <pre id="term-body" class="term-body"></pre>
+        </div>
+        <div class="findings" id="replay-findings" hidden>
+          <h3>Findings</h3>
+          <ul id="replay-list"></ul>
+        </div>
+      </section>
+
+      <section class="panel" id="try" aria-labelledby="try-title">
+        <div class="panel-head">
+          <h2 id="try-title">Try your own log</h2>
+          <p class="lede">
+            Pick a log file or ZIP bundle. It's read and scanned in this tab, and our servers never receive it.
+          </p>
+        </div>
+        <div
+          id="dropzone"
+          class="dropzone"
+          tabindex="0"
+          role="button"
+          aria-label="Drop a log or zip file here or press to choose"
+        >
+          <p>Drop a <code>.log</code> / text file or <code>.zip</code> bundle here, or click to choose</p>
+          <input id="file-input" type="file" accept=".log,.txt,.json,.ndjson,.jsonl,.csv,.csb,.zip,text/*,application/zip" hidden />
+        </div>
+        <p class="privacy inline" role="note">
+          Your file stays in this browser tab. It's never uploaded, so there's nothing for us to store or delete.
+        </p>
+        <div class="controls">
+          <span id="try-meta" class="meta" aria-live="polite"></span>
+        </div>
+        <div class="findings" id="try-findings" hidden>
+          <h3>Your findings</h3>
+          <ul id="try-list"></ul>
+        </div>
+        <div class="controls after-demo">
+          <a class="btn" href="https://github.com/dorman/traceglass" rel="noopener">View on GitHub</a>
+          <a class="btn" href="https://github.com/dorman/traceglass/blob/main/traceglass/README.md" rel="noopener">Install the CLI</a>
+        </div>
+      </section>
+
+      <section class="panel muted" aria-labelledby="limits-title">
+        <h2 id="limits-title">What this demo includes</h2>
+        <ul class="limits">
+          <li>Included: same built-in signature library + lens catalog (<code>v0.1.0</code>) as the CLI; plain/JSON/NDJSON/CSV; in-memory ZIP bundles</li>
+          <li>Excluded: filesystem directory walks, interactive TUI, watchlist/config files, scripted machine output flags</li>
+          <li>Privacy: strict CSP; no analytics; no CDN; fonts are <code>local()</code> only; <code>connect-src 'self'</code> only to fetch the local <code>.wasm</code> at startup</li>
+        </ul>
+        <pre id="caps" class="caps" hidden></pre>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>Portable static demo for the future <code>dorman/traceglass-site</code> repo. Analysis runs in WebAssembly.</p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

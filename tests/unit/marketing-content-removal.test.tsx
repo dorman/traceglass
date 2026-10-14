@@ -17,7 +17,7 @@ describe('retired TraceGlass pricing content', () => {
     const publishedHome = {
       version: 1,
       sections: [
-        { id: 'hero', kind: 'hero', data: { heading: 'Grammarly, for logs.' }, assets: [] },
+        { id: 'hero', kind: 'hero', data: { heading: 'A privacy-first log inspector.' }, assets: [] },
         { id: 'pricing', kind: 'pricing', data: { heading: '$12/mo' }, assets: [] },
         {
           id: 'legacy-checkout',

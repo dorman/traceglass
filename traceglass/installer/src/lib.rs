@@ -17,8 +17,12 @@ pub const MANIFEST_URL: &str =
 pub const MANIFEST_SIGNATURE_URL: &str =
     "https://github.com/dorman/traceglass/releases/latest/download/traceglass-release.json.sig";
 pub const SIGNATURE_SCHEME: &str = "Ed25519";
-pub const SIGNING_KEY_ID: &str = "traceglass-release-ed25519-2026";
-pub const SIGNING_PUBLIC_KEY_B64: &str = "QXo02UwkfWYzeNjLbyEmE8hk1kLRrKmYDFPGgN0HsfE=";
+/// Short fingerprint of the embedded release public key (first 8 hex chars).
+/// Must match `signingKeyId` written by `.github/workflows/release.yml`.
+pub const SIGNING_KEY_ID: &str = "traceglass-ed25519-26deb421";
+/// Raw 32-byte Ed25519 public key (base64). Private key is only in the
+/// `TRACEGLASS_RELEASE_SIGNING_KEY_PEM` GitHub Actions secret.
+pub const SIGNING_PUBLIC_KEY_B64: &str = "Jt60If+IJMDSQh3x8XN1ctHXwJJEOncGRy/EZGkU/DU=";
 const SUPPORTED_TARGETS: [&str; 4] = [
     "x86_64-unknown-linux-gnu",
     "aarch64-apple-darwin",
@@ -136,22 +140,15 @@ pub fn validate_manifest(content: &[u8]) -> Result<ReleaseManifest, InstallerErr
             "schema or repository does not match the pinned product".to_string(),
         ));
     }
-    let valid_version = manifest
-        .version
-        .strip_prefix('v')
-        .is_some_and(|version| {
-            version.split('.').count() == 3
-                && version
-                    .split('.')
-                    .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
-        });
-    if !valid_version {
+    if !is_valid_release_tag(&manifest.version) {
         return Err(InstallerError::InvalidManifest(
-            "version must be a three-part release tag".to_string(),
+            "version must be a release tag like v0.1.0 or v0.1.0-rc.1".to_string(),
         ));
     }
     if manifest.targets.is_empty() {
-        return Err(InstallerError::InvalidManifest("no release targets".to_string()));
+        return Err(InstallerError::InvalidManifest(
+            "no release targets".to_string(),
+        ));
     }
     for target in &manifest.targets {
         if !SUPPORTED_TARGETS.contains(&target.target.as_str()) {
@@ -196,7 +193,9 @@ pub fn validate_manifest(content: &[u8]) -> Result<ReleaseManifest, InstallerErr
             &target.payload.executable_sha256,
         ] {
             if hash.len() != 64
-                || !hash.bytes().all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+                || !hash
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
             {
                 return Err(InstallerError::InvalidManifest(
                     "artifact hashes must be lowercase SHA-256 values".to_string(),
@@ -217,24 +216,61 @@ fn validate_artifact(artifact: &Artifact, version: &str) -> Result<(), Installer
     Ok(())
 }
 
+/// Accept `vMAJOR.MINOR.PATCH` and optional SemVer prerelease (`v0.1.0-rc.1`).
+pub fn is_valid_release_tag(version: &str) -> bool {
+    let Some(rest) = version.strip_prefix('v') else {
+        return false;
+    };
+    let (core, prerelease) = match rest.split_once('-') {
+        Some((core, pre)) => (core, Some(pre)),
+        None => (rest, None),
+    };
+    let parts: Vec<&str> = core.split('.').collect();
+    if parts.len() != 3
+        || !parts
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return false;
+    }
+    match prerelease {
+        None => true,
+        Some("") => false,
+        Some(pre) => pre.split('.').all(|id| {
+            !id.is_empty()
+                && id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        }),
+    }
+}
+
+/// Build canonical manifest and signature URLs for `latest` or a specific tag.
+pub fn manifest_urls_for_tag(tag: Option<&str>) -> (String, String) {
+    match tag {
+        Some(tag) => {
+            let base = format!("https://github.com/{REPOSITORY}/releases/download/{tag}");
+            (
+                format!("{base}/traceglass-release.json"),
+                format!("{base}/traceglass-release.json.sig"),
+            )
+        }
+        None => (MANIFEST_URL.to_string(), MANIFEST_SIGNATURE_URL.to_string()),
+    }
+}
+
 pub fn expected_target() -> &'static str {
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    {
-        return "x86_64-unknown-linux-gnu";
+    if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "x86_64-unknown-linux-gnu"
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "aarch64-apple-darwin"
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        "x86_64-apple-darwin"
+    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "x86_64-pc-windows-msvc"
+    } else {
+        "unsupported"
     }
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        return "aarch64-apple-darwin";
-    }
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    {
-        return "x86_64-apple-darwin";
-    }
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    {
-        return "x86_64-pc-windows-msvc";
-    }
-    "unsupported"
 }
 
 pub fn find_target<'a>(
@@ -276,8 +312,7 @@ pub fn extract_payload(
                 .entries()
                 .map_err(|error| InstallerError::Archive(error.to_string()))?
             {
-                let mut entry =
-                    item.map_err(|error| InstallerError::Archive(error.to_string()))?;
+                let mut entry = item.map_err(|error| InstallerError::Archive(error.to_string()))?;
                 let path = entry
                     .path()
                     .map_err(|error| InstallerError::Archive(error.to_string()))?
@@ -286,7 +321,9 @@ pub fn extract_payload(
                 if entry.header().entry_type().is_symlink()
                     || entry.header().entry_type().is_hard_link()
                 {
-                    return Err(InstallerError::UnsafeArchiveMember(path.display().to_string()));
+                    return Err(InstallerError::UnsafeArchiveMember(
+                        path.display().to_string(),
+                    ));
                 }
                 let output = destination.join(&path);
                 entry
@@ -313,7 +350,9 @@ pub fn extract_payload(
                     .unix_mode()
                     .is_some_and(|mode| mode & 0o170000 == 0o120000)
                 {
-                    return Err(InstallerError::UnsafeArchiveMember(path.display().to_string()));
+                    return Err(InstallerError::UnsafeArchiveMember(
+                        path.display().to_string(),
+                    ));
                 }
                 if entry.is_dir() {
                     std::fs::create_dir_all(destination.join(&path))?;
@@ -336,7 +375,7 @@ pub fn extract_payload(
         other => {
             return Err(InstallerError::Archive(format!(
                 "unsupported archive format {other}"
-            )))
+            )));
         }
     }
     executable.ok_or(InstallerError::MissingExecutable)
@@ -352,7 +391,9 @@ fn validate_member(path: &Path, target: &str, expected: &str) -> Result<(), Inst
         && matches!(components.next(), Some(Component::Normal(value)) if value.to_string_lossy() == expected || value.to_string_lossy() == "README.md" || value.to_string_lossy() == "LICENSE")
         && components.next().is_none();
     if !valid {
-        return Err(InstallerError::UnsafeArchiveMember(path.display().to_string()));
+        return Err(InstallerError::UnsafeArchiveMember(
+            path.display().to_string(),
+        ));
     }
     Ok(())
 }
@@ -389,6 +430,67 @@ mod tests {
     }
 
     #[test]
+    fn throwaway_signed_manifest_verifies_and_wrong_key_is_rejected() {
+        let signing_key = SigningKey::from_bytes(&[9; 32]);
+        let wrong_key = SigningKey::from_bytes(&[11; 32]).verifying_key();
+        let manifest = sample_manifest_json("v0.1.0-rc.1");
+        let signature = signing_key.sign(manifest.as_bytes());
+        let verifying_key = signing_key.verifying_key();
+
+        verify_signature(manifest.as_bytes(), &signature.to_bytes(), &verifying_key)
+            .expect("throwaway-signed manifest must verify");
+        validate_manifest(manifest.as_bytes()).expect("rc tag manifest must parse");
+
+        assert!(
+            matches!(
+                verify_signature(manifest.as_bytes(), &signature.to_bytes(), &wrong_key),
+                Err(InstallerError::InvalidSignature)
+            ),
+            "a different Ed25519 public key must reject the signature"
+        );
+        assert!(
+            matches!(
+                verify_signature(b"tampered-manifest", &signature.to_bytes(), &verifying_key),
+                Err(InstallerError::InvalidSignature)
+            ),
+            "tampered bytes must reject the signature"
+        );
+    }
+
+    #[test]
+    fn accepts_prerelease_tags_and_rejects_malformed_versions() {
+        assert!(is_valid_release_tag("v0.1.0"));
+        assert!(is_valid_release_tag("v0.1.0-rc.1"));
+        assert!(is_valid_release_tag("v1.2.3-beta.2"));
+        assert!(!is_valid_release_tag("0.1.0"));
+        assert!(!is_valid_release_tag("v0.1"));
+        assert!(!is_valid_release_tag("v0.1.0-"));
+        assert!(!is_valid_release_tag("v0.1.0-rc_1"));
+        validate_manifest(sample_manifest_json("v0.1.0-rc.1").as_bytes())
+            .expect("prerelease manifest should validate");
+    }
+
+    #[test]
+    fn embedded_public_key_decodes_to_expected_fingerprint() {
+        let key = public_key().expect("embedded public key must decode");
+        let fingerprint: String = key
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        assert_eq!(&fingerprint[..8], "26deb421");
+        assert_eq!(
+            fingerprint,
+            "26deb421ff8824c0d2421df1f1737572d1d7c092443a7706472fc4646914fc35"
+        );
+        assert_eq!(SIGNING_KEY_ID, "traceglass-ed25519-26deb421");
+        assert_eq!(
+            SIGNING_PUBLIC_KEY_B64,
+            "Jt60If+IJMDSQh3x8XN1ctHXwJJEOncGRy/EZGkU/DU="
+        );
+    }
+
+    #[test]
     fn rejects_traversal_members_before_install() {
         let error = validate_member(
             Path::new("traceglass-x86_64-unknown-linux-gnu/../../traceglass"),
@@ -410,7 +512,11 @@ mod tests {
         header.set_mode(0o644);
         header.set_cksum();
         builder
-            .append_data(&mut header, "traceglass-x86_64-unknown-linux-gnu/evil", &b"x"[..])
+            .append_data(
+                &mut header,
+                "traceglass-x86_64-unknown-linux-gnu/evil",
+                &b"x"[..],
+            )
             .expect("fixture archive");
         let encoder = builder.into_inner().expect("tar encoder");
         let archive = encoder.finish().expect("gzip archive");
@@ -421,13 +527,57 @@ mod tests {
             "x86_64-unknown-linux-gnu",
             destination.path(),
         );
-        assert!(matches!(result, Err(InstallerError::UnsafeArchiveMember(_))));
-        assert!(!destination.path().join("traceglass-x86_64-unknown-linux-gnu/evil").exists());
+        assert!(matches!(
+            result,
+            Err(InstallerError::UnsafeArchiveMember(_))
+        ));
+        assert!(
+            !destination
+                .path()
+                .join("traceglass-x86_64-unknown-linux-gnu/evil")
+                .exists()
+        );
     }
 
     #[test]
     fn rejects_malformed_manifest_before_download_selection() {
         let error = validate_manifest(br#"{"schema":"not-traceglass"}"#);
         assert!(matches!(error, Err(InstallerError::InvalidManifest(_))));
+    }
+
+    fn sample_manifest_json(version: &str) -> String {
+        let target = "x86_64-unknown-linux-gnu";
+        let prefix = format!("https://github.com/{REPOSITORY}/releases/download/{version}");
+        let installer = format!("traceglass-installer-{target}");
+        let payload = format!("traceglass-{target}.tar.gz");
+        let hash = "a".repeat(64);
+        format!(
+            r#"{{
+  "schema": "traceglass-release/v1",
+  "repository": "{REPOSITORY}",
+  "version": "{version}",
+  "targets": [{{
+    "target": "{target}",
+    "installer": {{
+      "filename": "{installer}",
+      "url": "{prefix}/{installer}",
+      "sha256": "{hash}",
+      "signatureUrl": "{prefix}/{installer}.sig",
+      "signatureScheme": "Ed25519",
+      "signingKeyId": "{SIGNING_KEY_ID}"
+    }},
+    "payload": {{
+      "filename": "{payload}",
+      "url": "{prefix}/{payload}",
+      "sha256": "{hash}",
+      "signatureUrl": "{prefix}/{payload}.sig",
+      "signatureScheme": "Ed25519",
+      "signingKeyId": "{SIGNING_KEY_ID}",
+      "archiveFormat": "tar.gz",
+      "executableSha256": "{hash}"
+    }}
+  }}]
+}}"#
+        )
     }
 }

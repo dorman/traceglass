@@ -144,7 +144,14 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
             saw_findings = true;
         }
 
-        if saw_findings && !requested_export {
+        // Wait for the selected finding's detail pane (provenance + evidence)
+        // before exporting. On Windows ConPTY the list can paint a frame before
+        // the detail lines; exporting immediately made this smoke flake.
+        if saw_findings
+            && !requested_export
+            && transcript.contains("source: builtin")
+            && transcript.to_ascii_lowercase().contains("evidence")
+        {
             writer.write_all(b"e")?;
             writer.flush()?;
             requested_export = true;

@@ -55,7 +55,7 @@ test('public pages no longer publish the retired paid offer', async ({ page }) =
       'privacy',
       'faq',
     ]);
-    await expect(page.getByRole('heading', { name: 'Grammarly, for logs.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'A privacy-first log inspector.' })).toBeVisible();
     await expect(page.locator('body')).not.toContainText('Read the signal. Ignore the noise.');
     await expect(page.locator('body')).not.toContainText('$12');
     await expect(page.locator('body')).not.toContainText('Subscribe via Stripe');

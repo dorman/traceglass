@@ -202,6 +202,8 @@ pub fn validate(catalog: &Catalog) -> Result<()> {
 }
 
 impl Selection {
+    /// Shipped default lens. Not [`Default`] because catalog load can fail.
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> Result<Self> {
         Self::from_id("general-triage")
     }

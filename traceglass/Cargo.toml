@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 default-run = "traceglass"
-description = "Grammarly for logs — interactive TUI to highlight, scan, and triage diagnostic logs"
+description = "TraceGlass — a privacy-first log inspector: interactive TUI to highlight, scan, and triage diagnostic logs"
 license = "MIT"
 repository = "https://github.com/dorman/traceglass"
 homepage = "https://github.com/dorman/traceglass"
@@ -12,22 +12,44 @@ documentation = "https://github.com/dorman/traceglass/blob/main/traceglass/docs/
 readme = "README.md"
 keywords = ["logs", "tui", "diagnostics", "cli", "triage"]
 categories = ["command-line-utilities", "development-tools"]
-exclude = ["samples/big.log", "target/", ".github/"]
+exclude = ["samples/big.log", "target/", ".github/", "wasm/"]
+
+[lib]
+name = "traceglass"
+path = "src/lib.rs"
 
 [[bin]]
 name = "traceglass"
 path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli", "tui", "fs"]
+# Machine CLI + clap entrypoint (also pulls highlight-rule compilation helpers).
+cli = ["dep:clap"]
+# Interactive terminal UI.
+tui = ["dep:crossterm", "dep:ratatui", "cli"]
+# Enables the `zip` crate (on-disk via `fs`, in-memory via `wasm-scan`).
+zip = ["dep:zip"]
+# Filesystem ingest, on-disk zip extraction, config/watchlist persistence.
+fs = ["zip"]
+# Browser / wasm32 scanner surface (no TUI, no filesystem temp dirs).
+# Includes in-memory zip → text extraction for support-bundle drops.
+wasm-scan = ["zip"]
 
 [dependencies]
 anyhow = "1.0.104"
-clap = { version = "4.6.4", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"], optional = true }
 csv = "1.4.0"
-crossterm = "0.29.0"
-ratatui = "0.30.2"
+crossterm = { version = "0.29.0", optional = true }
+ratatui = { version = "0.30.2", optional = true }
 regex = "1.13.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"], optional = true }
 
 [dev-dependencies]
 portable-pty = "0.9.0"
+
+[package.metadata.docs.rs]
+all-features = true
