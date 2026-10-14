@@ -481,14 +481,17 @@ impl Theme {
             .any(|needle| message.contains(needle))
         {
             StatusTone::Progress
-        } else if message.contains("no matches") || message.contains("no search matches") {
+        } else if message == "no matches" || message.contains("no search matches") {
             // Zero-hit search is the one place status goes Error-red.
+            // Exact "no matches" only — filter-empty copy embeds the same
+            // phrase and must not pick up danger red.
             StatusTone::Error
         } else if [
             "cancelled",
             "limit reached",
             "nothing to",
             "no findings",
+            "no matches",
             "empty",
         ]
         .iter()
@@ -949,6 +952,10 @@ mod tests {
         assert_eq!(Theme::status_tone("jumped to L12"), StatusTone::Success);
         assert_eq!(Theme::status_tone("filter cleared"), StatusTone::Neutral);
         assert_eq!(Theme::status_tone("no matches"), StatusTone::Error);
+        assert_eq!(
+            Theme::status_tone("filter: on · no matches"),
+            StatusTone::Warning
+        );
         assert_eq!(Theme::status_tone("match 1 of 5"), StatusTone::Neutral);
         assert_eq!(Theme::status_tone("occurrence 1 of 5"), StatusTone::Neutral);
     }

@@ -1285,7 +1285,7 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
             }
             if let Some(s) = &app.search {
                 let raw: String = s.raw.chars().take(20).collect();
-                let (idx, total) = search_match_index(app);
+                let (idx, total) = app.search_occurrence_index();
                 // Occurrence count (not hit lines) — matches highlighted spans.
                 let match_label = if total == 0 {
                     "no matches".to_string()
@@ -1341,42 +1341,6 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
     // longer previous message (PTY smoke tests assert contiguous status text).
     frame.render_widget(Clear, area);
     frame.render_widget(Paragraph::new(Line::from(spans)).style(base), area);
-}
-
-/// Current search occurrence index (1-based) and total for the status counter.
-/// Counts *occurrences* (same granularity as highlighted spans / `n`/`N`).
-fn search_match_index(app: &App) -> (usize, usize) {
-    if !app.has_files() {
-        return (0, 0);
-    }
-    let Some(search) = &app.search else {
-        return (0, 0);
-    };
-    let file = app.file();
-    let mut hits: Vec<(usize, usize)> = Vec::new();
-    for (vp, &line_idx) in file.view.iter().enumerate() {
-        for m in search.regex.find_iter(&file.lines[line_idx]) {
-            if m.start() != m.end() {
-                hits.push((vp, m.start()));
-            }
-        }
-    }
-    let total = hits.len();
-    if total == 0 {
-        return (0, 0);
-    }
-    let cur = (file.view_pos, search.focus_start);
-    let current = match hits.binary_search(&cur) {
-        Ok(idx) => idx + 1,
-        Err(idx) => {
-            if idx == 0 {
-                1
-            } else {
-                idx
-            }
-        }
-    };
-    (current.min(total), total)
 }
 
 fn draw_browser_popup(frame: &mut Frame, app: &mut App, area: Rect) {

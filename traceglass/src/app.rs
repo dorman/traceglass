@@ -1148,6 +1148,9 @@ impl App {
                     self.status = Some("no matches".into());
                 } else {
                     self.sync_search_focus_to_cursor();
+                    // Warm the occurrence cache so the status counter can reuse it
+                    // instead of rescanning every frame.
+                    let _ = self.ensure_match_positions();
                     self.status = Some(format!("occurrence 1 of {hits}"));
                 }
             }
@@ -1533,6 +1536,7 @@ impl App {
         f.view_pos = new_pos as usize;
         self.ensure_cursor_visible();
         self.clamp_scroll();
+        self.sync_search_focus_to_cursor();
     }
 
     pub fn page_down(&mut self) {
@@ -1571,6 +1575,7 @@ impl App {
         let f = self.file_mut();
         f.view_pos = 0;
         f.top = 0;
+        self.sync_search_focus_to_cursor();
     }
 
     pub fn go_bottom(&mut self) {
@@ -1581,6 +1586,7 @@ impl App {
         f.view_pos = f.view.len().saturating_sub(1);
         self.ensure_cursor_visible();
         self.clamp_scroll();
+        self.sync_search_focus_to_cursor();
     }
 
     /// Toggle a bookmark on the cursor's absolute line.
@@ -1770,9 +1776,10 @@ impl App {
         if self.file().match_positions.is_none() {
             let hits: Vec<(usize, usize)> = if let Some(search) = &self.search {
                 // One entry per occurrence so multi-hit lines (e.g. ERROR + error)
-                // are counted and visited separately.
+                // are counted and visited separately. Cap per line and overall so
+                // a common literal cannot allocate tens of millions of hits.
                 let mut out = Vec::new();
-                for (vp, &line_idx) in self.file().view.iter().enumerate() {
+                'lines: for (vp, &line_idx) in self.file().view.iter().enumerate() {
                     for m in search
                         .regex
                         .find_iter(&self.file().lines[line_idx])
@@ -1780,6 +1787,9 @@ impl App {
                     {
                         if m.start() != m.end() {
                             out.push((vp, m.start()));
+                            if out.len() >= MAX_MATCHES_PER_FILE {
+                                break 'lines;
+                            }
                         }
                     }
                 }
@@ -1791,6 +1801,7 @@ impl App {
                     .enumerate()
                     .filter(|&(_, &line)| self.is_active_match(line))
                     .map(|(pos, _)| (pos, 0usize))
+                    .take(MAX_MATCHES_PER_FILE)
                     .collect()
             };
             self.file_mut().match_positions = Some(hits);
@@ -1809,6 +1820,59 @@ impl App {
             return false;
         }
         true
+    }
+
+    /// Occurrence index (1-based) and total for the status counter.
+    ///
+    /// Reuses [`LogFile::match_positions`] when present so redraws do not
+    /// re-scan; otherwise applies the same per-line / per-file caps as
+    /// [`Self::ensure_match_positions`].
+    pub fn search_occurrence_index(&self) -> (usize, usize) {
+        if !self.has_files() {
+            return (0, 0);
+        }
+        let Some(search) = &self.search else {
+            return (0, 0);
+        };
+        let file = self.file();
+        let owned;
+        let hits: &[(usize, usize)] = if let Some(cached) = file.match_positions.as_ref() {
+            cached.as_slice()
+        } else {
+            let mut out = Vec::new();
+            'lines: for (vp, &line_idx) in file.view.iter().enumerate() {
+                for m in search
+                    .regex
+                    .find_iter(&file.lines[line_idx])
+                    .take(MAX_MATCHES_PER_LINE)
+                {
+                    if m.start() != m.end() {
+                        out.push((vp, m.start()));
+                        if out.len() >= MAX_MATCHES_PER_FILE {
+                            break 'lines;
+                        }
+                    }
+                }
+            }
+            owned = out;
+            owned.as_slice()
+        };
+        let total = hits.len();
+        if total == 0 {
+            return (0, 0);
+        }
+        let cur = (file.view_pos, search.focus_start);
+        let current = match hits.binary_search(&cur) {
+            Ok(idx) => idx + 1,
+            Err(idx) => {
+                if idx == 0 {
+                    1
+                } else {
+                    idx
+                }
+            }
+        };
+        (current.min(total), total)
     }
 
     /// Move the cursor to hit `idx` (0-based) at view position `pos`, of `total`.
@@ -1858,14 +1922,20 @@ impl App {
             return;
         }
         let height = self.viewport_height.max(1);
-        let f = self.file_mut();
-        let vlen = f.view.len();
-        let max_top = vlen.saturating_sub(height) as isize;
-        f.top = (f.top as isize + delta).clamp(0, max_top) as usize;
-        if f.view_pos < f.top {
-            f.view_pos = f.top;
-        } else if f.view_pos >= f.top + height {
-            f.view_pos = (f.top + height - 1).min(vlen.saturating_sub(1));
+        let old_pos = self.file().view_pos;
+        {
+            let f = self.file_mut();
+            let vlen = f.view.len();
+            let max_top = vlen.saturating_sub(height) as isize;
+            f.top = (f.top as isize + delta).clamp(0, max_top) as usize;
+            if f.view_pos < f.top {
+                f.view_pos = f.top;
+            } else if f.view_pos >= f.top + height {
+                f.view_pos = (f.top + height - 1).min(vlen.saturating_sub(1));
+            }
+        }
+        if self.file().view_pos != old_pos {
+            self.sync_search_focus_to_cursor();
         }
     }
 
@@ -1876,15 +1946,21 @@ impl App {
             return;
         }
         let height = self.viewport_height.max(1);
-        let f = self.file_mut();
-        let vlen = f.view.len();
-        let max_top = vlen.saturating_sub(height);
-        let top = (frac.clamp(0.0, 1.0) * max_top as f64).round() as usize;
-        f.top = top.min(max_top);
-        if f.view_pos < f.top {
-            f.view_pos = f.top;
-        } else if f.view_pos >= f.top + height {
-            f.view_pos = (f.top + height - 1).min(vlen.saturating_sub(1));
+        let old_pos = self.file().view_pos;
+        {
+            let f = self.file_mut();
+            let vlen = f.view.len();
+            let max_top = vlen.saturating_sub(height);
+            let top = (frac.clamp(0.0, 1.0) * max_top as f64).round() as usize;
+            f.top = top.min(max_top);
+            if f.view_pos < f.top {
+                f.view_pos = f.top;
+            } else if f.view_pos >= f.top + height {
+                f.view_pos = (f.top + height - 1).min(vlen.saturating_sub(1));
+            }
+        }
+        if self.file().view_pos != old_pos {
+            self.sync_search_focus_to_cursor();
         }
     }
 
@@ -1897,6 +1973,7 @@ impl App {
         let pos = self.file().top + row_from_top;
         if pos < self.file().view.len() {
             self.file_mut().view_pos = pos;
+            self.sync_search_focus_to_cursor();
         }
     }
 
@@ -2569,12 +2646,14 @@ impl App {
     pub fn next_file(&mut self) {
         if self.files.len() > 1 {
             self.current = (self.current + 1) % self.files.len();
+            self.sync_search_focus_to_cursor();
         }
     }
 
     pub fn prev_file(&mut self) {
         if self.files.len() > 1 {
             self.current = (self.current + self.files.len() - 1) % self.files.len();
+            self.sync_search_focus_to_cursor();
         }
     }
 
@@ -2582,6 +2661,7 @@ impl App {
     pub fn select_file(&mut self, index: usize) {
         if index < self.files.len() {
             self.current = index;
+            self.sync_search_focus_to_cursor();
         }
     }
 
@@ -4030,17 +4110,22 @@ mod tests {
         );
     }
 
-    /// `n`/`N` must not re-scan the file on every press: the first jump builds the
-    /// hit list, later ones reuse it. Compares the cost of one cold jump against
-    /// many warm ones, so the bound is a ratio, not a wall-clock budget.
+    /// `n`/`N` must not re-scan the file on every press: applying a search warms
+    /// the hit list, and later jumps reuse it. Compares a cold rebuild against
+    /// many warm jumps, so the bound is a ratio, not a wall-clock budget.
     #[test]
     fn match_nav_reuses_cached_positions() {
         let mut app = app_with_paths(&["samples/big.log"]);
         app.begin_input(InputKind::Search);
-        app.push_input_chars("connection".chars());
+        app.push_input_chars("quarantine".chars());
         app.confirm_input();
-        assert!(app.file().match_positions.is_none(), "cache starts empty");
+        assert!(
+            app.file().match_positions.is_some(),
+            "applying search should warm the occurrence cache"
+        );
 
+        // Drop the cache to measure a cold rebuild via the next jump.
+        app.file_mut().match_positions = None;
         let cold = std::time::Instant::now();
         app.next_match();
         let cold = cold.elapsed().max(std::time::Duration::from_nanos(1));
