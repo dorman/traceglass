@@ -131,7 +131,7 @@ test("zip support-bundle scans in WASM without network", async ({ page }) => {
   await page.waitForTimeout(500);
   requests.length = 0;
 
-  // Prefer the repo-vendored demo-bundle.zip (same planted incident as PR #52).
+  // In-tree demo-bundle.zip from main (merged PR #52).
   const zipPath = join(root, "../traceglass/samples/demo-bundle.zip");
   const zipBytes = readFileSync(zipPath);
 

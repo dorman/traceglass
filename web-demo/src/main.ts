@@ -91,6 +91,9 @@ async function loadSampleSources(): Promise<{ name: string; content: string }[]>
       throw new Error(`sample not embedded: ${path}`);
     }
     const content = modules[match];
+    if (content === undefined) {
+      throw new Error(`sample embed empty: ${path}`);
+    }
     const name = path.replace(/^samples\/demo-bundle-case\//, "");
     sources.push({ name, content });
   }

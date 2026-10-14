@@ -45,4 +45,4 @@ Artifacts land in `artifacts/` (`wasm-size.json`, `sample-scan.json`, `perf-50mb
 - `../traceglass/` — library + CLI (features gate TUI/fs)
 - `../traceglass/wasm/` — `wasm-bindgen` crate
 - `pkg/` — generated JS/WASM (gitignored; CI builds it)
-- `public/samples/` — vendored planted-incident logs from draft PR #52
+- `public/samples/` — portable copy of `traceglass/samples/demo-bundle/case` (from merged PR #52)

@@ -30,9 +30,10 @@
 
 ## Sample provenance
 
-`traceglass/samples/demo-bundle/` and `web-demo/public/samples/` are **vendored
-from draft PR #52** (`cursor/demo-bundle-ba9e`) because that sample is not on
-`main` yet. See `VENDOR_NOTE.md`.
+`traceglass/samples/demo-bundle/` now lives on `main` (merged PR #52). This
+branch **dropped** the vendored duplicate + `VENDOR_NOTE.md` and keeps only a
+portable copy under `web-demo/public/samples/` for the static demo (same case
+files as in-tree `samples/demo-bundle/case/`).
 
 ## CSP
 
@@ -100,14 +101,14 @@ not a rewrite.
 | 4 | **Large-file handling** — JS pre-check before wasm; progress/cancel; optional Worker so UI stays responsive; fail soft on >50 MiB without 600 MiB heap spike; consider chunked scan later | `web-demo` + small wasm API tweaks | Medium | Size policy (keep 50 MiB?) |
 | 5 | **CSP / privacy proof** — optional inline wasm for `connect-src 'none'`; keep Playwright no-network gate | Build pipeline | Low–medium | — |
 | 6 | **Size budget (optional)** — push gzip wasm toward &lt;300 KiB via `opt-level=z` / subset signatures if marketing requires | `wasm` profile + maybe feature | Medium | Kill criteria on size |
-| 7 | **Sample hygiene** — drop vendored demo-bundle once PR #52 merges; point site at one canonical fixture | Samples only | Low | Merge #52 |
+| 7 | **Sample hygiene** — when moving to the site repo, decide whether to submodule/copy `samples/demo-bundle` or keep `web-demo/public/samples` only | Samples only | Low | Site-repo layout |
 
 ### Sequencing suggestion (to hit Nov 15)
 
 1. **Owner decisions this week:** host repo + public URL + whether 50 MiB cap / ~0.5 MiB gzip wasm is acceptable.
 2. **Parallel track A:** stand up site repo + static deploy of current `web-demo` (task 1) — unlocks a private preview URL immediately.
 3. **Parallel track B:** a11y + UX polish + JS size pre-check (tasks 2–4 minimum bar) on the demo.
-4. **Before public link:** task 5 network-proof wording + Playwright green on site CI; task 7 if #52 landed.
+4. **Before public link:** task 5 network-proof wording + Playwright green on site CI; task 7 sample layout for the site repo.
 5. **Stretch (only if size is a launch blocker):** task 6.
 
 ### Risk if delayed
