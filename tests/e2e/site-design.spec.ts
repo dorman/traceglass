@@ -6,7 +6,7 @@ import { establishVerifiedOwner } from './support/auth-fixture';
 import { startCapturedEmailProxy, stopCapturedEmailProxy } from './support/email-proxy';
 
 const baseURL = process.env.BASE_URL ?? 'http://127.0.0.1:3000';
-const logoAssetHost = 'pub-629428d185ca4960a0a73c850d32294b.r2.dev';
+const logoAsset = 'traceglass-mark.webp';
 
 test.beforeAll(async () => {
   await startCapturedEmailProxy();
@@ -28,8 +28,7 @@ test('the shared TraceGlass logo loads at desktop and mobile widths', async ({ p
       const logo = page.locator('header.site-design-nav img[alt="TraceGlass"]').first();
       await expect(logo).toBeVisible();
       const imageSource = await logo.getAttribute('src');
-      expect(imageSource).toContain(logoAssetHost);
-      expect(imageSource).toContain('598467e0-a6a8-427c-911e-8f7fd831b9c0.png');
+      expect(imageSource).toContain(logoAsset);
       await expect
         .poll(() => logo.evaluate((image) => (image as HTMLImageElement).naturalWidth))
         .toBeGreaterThan(0);
