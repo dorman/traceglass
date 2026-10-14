@@ -435,6 +435,43 @@ const previousGeneratedWaitlistCopy = {
 const previousWaitlistBodies = new Set<string>(previousGeneratedWaitlistCopy.body);
 const previousWaitlistDescriptions = new Set<string>(previousGeneratedWaitlistCopy.seoDescription);
 
+const previousHomeHeroHeadings = ['Grammarly, for logs.'] as const;
+const publishedHomeHeroHeading = 'A privacy-first log inspector.';
+
+/** Rewrite the retired home hero heading when it still matches the previous generated copy. */
+export function reconcilePublishedHomeHeading(input: {
+  sourceKey: string | null | undefined;
+  content: unknown;
+}): { content: unknown; contentChanged: boolean } {
+  if (
+    input.sourceKey !== 'home' ||
+    !isJsonRecord(input.content) ||
+    !Array.isArray(input.content.sections)
+  ) {
+    return { content: input.content, contentChanged: false };
+  }
+
+  let contentChanged = false;
+  const sections = input.content.sections.map((value) => {
+    if (!isJsonRecord(value) || value.id !== 'hero') return value;
+    const sectionData = value.data;
+    if (
+      !isJsonRecord(sectionData) ||
+      typeof sectionData.heading !== 'string' ||
+      !(previousHomeHeroHeadings as readonly string[]).includes(sectionData.heading)
+    ) {
+      return value;
+    }
+    contentChanged = true;
+    return { ...value, data: { ...sectionData, heading: publishedHomeHeroHeading } };
+  });
+
+  return {
+    content: contentChanged ? { ...input.content, sections } : input.content,
+    contentChanged,
+  };
+}
+
 /** Update only unchanged generated waitlist copy, leaving custom sections and edits intact. */
 export function reconcileGeneratedWaitlistCopy(input: {
   title: string;

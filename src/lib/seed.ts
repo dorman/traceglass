@@ -94,6 +94,7 @@ export async function seed(): Promise<void> {
     cleanupRetiredPricingContent,
     normalizeMarketingPageContent,
     reconcileGeneratedWaitlistCopy,
+    reconcilePublishedHomeHeading,
   } = await import('@/lib/marketing-page-content');
 
   const contentFor = (template: (typeof existingMarketingPages)[number]) =>
@@ -227,13 +228,26 @@ export async function seed(): Promise<void> {
       title: page.title,
       content: page.content,
     });
-    if (!cleanup.titleChanged && !cleanup.contentChanged) continue;
+    const heading =
+      sourceKey === 'home'
+        ? reconcilePublishedHomeHeading({
+            sourceKey,
+            content: cleanup.contentChanged ? cleanup.content : page.content,
+          })
+        : { content: page.content, contentChanged: false };
+    if (!cleanup.titleChanged && !cleanup.contentChanged && !heading.contentChanged) continue;
 
     await prisma.marketingPage.update({
       where: { id: page.id },
       data: {
         ...(cleanup.titleChanged ? { title: cleanup.title } : {}),
-        ...(cleanup.contentChanged ? { content: cleanup.content as Prisma.InputJsonValue } : {}),
+        ...(cleanup.contentChanged || heading.contentChanged
+          ? {
+              content: (heading.contentChanged
+                ? heading.content
+                : cleanup.content) as Prisma.InputJsonValue,
+            }
+          : {}),
       },
     });
   }

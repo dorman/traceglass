@@ -6,6 +6,7 @@ import { PageContent } from '@/lib/contracts/pages';
 import {
   cleanupRetiredPricingContent,
   reconcileGeneratedWaitlistCopy,
+  reconcilePublishedHomeHeading,
 } from '@/lib/marketing-page-content';
 
 vi.mock('@/components/custom/brand-mark', () => ({
@@ -17,7 +18,12 @@ describe('retired TraceGlass pricing content', () => {
     const publishedHome = {
       version: 1,
       sections: [
-        { id: 'hero', kind: 'hero', data: { heading: 'A privacy-first log inspector.' }, assets: [] },
+        {
+          id: 'hero',
+          kind: 'hero',
+          data: { heading: 'A privacy-first log inspector.' },
+          assets: [],
+        },
         { id: 'pricing', kind: 'pricing', data: { heading: '$12/mo' }, assets: [] },
         {
           id: 'legacy-checkout',
@@ -153,6 +159,51 @@ describe('retired TraceGlass pricing content', () => {
 
     expect(markup).not.toContain('$12');
     expect(markup).not.toContain('Subscribe via Stripe');
+  });
+
+  it('rewrites the retired Grammarly home hero heading and preserves custom edits', () => {
+    const customSection = {
+      id: 'custom-contact',
+      kind: 'cta',
+      data: { heading: 'Talk to us' },
+      assets: [],
+    };
+    const publishedHome = {
+      version: 1,
+      sections: [
+        {
+          id: 'hero',
+          kind: 'hero',
+          data: { heading: 'Grammarly, for logs.', body: 'Custom edited body.' },
+          assets: [],
+        },
+        customSection,
+      ],
+      assets: [],
+      editorNote: 'Keep this customer content.',
+    };
+
+    const reconciled = reconcilePublishedHomeHeading({
+      sourceKey: 'home',
+      content: publishedHome,
+    });
+    const content = reconciled.content as typeof publishedHome;
+
+    expect(reconciled.contentChanged).toBe(true);
+    expect(content.sections[0]?.data.heading).toBe('A privacy-first log inspector.');
+    expect(content.sections[0]?.data.body).toBe('Custom edited body.');
+    expect(content.sections[1]).toEqual(customSection);
+    expect(content.editorNote).toBe('Keep this customer content.');
+    expect(
+      reconcilePublishedHomeHeading({ sourceKey: 'home', content: reconciled.content })
+        .contentChanged,
+    ).toBe(false);
+    expect(
+      reconcilePublishedHomeHeading({
+        sourceKey: 'release',
+        content: publishedHome,
+      }).contentChanged,
+    ).toBe(false);
   });
 
   it('reconciles only unchanged generated waitlist copy and preserves custom page content', () => {
