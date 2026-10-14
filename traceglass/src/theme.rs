@@ -345,6 +345,9 @@ impl Theme {
     }
 
     /// Near-black (or near-white on light) text on every filled semantic surface.
+    ///
+    /// Chip ink is always [`Self::match_fg`] (`#0B0F14` on Signal dark truecolor)
+    /// — never white — so HIGH/MED amber fills keep ≥4.5:1 contrast.
     pub fn filled(&self, background: Color) -> Style {
         Style::default()
             .fg(self.match_fg)
@@ -369,6 +372,9 @@ impl Theme {
 
     /// Severity badges and dots remain owned by the severity vocabulary rather
     /// than the user highlight rotation.
+    ///
+    /// Always dark ink via [`Self::filled`] — list chips and detail chips share
+    /// this path so HIGH/MED never render white-on-amber.
     pub fn severity_badge(&self, severity: Severity) -> Style {
         self.filled(self.severity_color(severity))
     }
@@ -711,13 +717,15 @@ enum Level {
     Debug,
 }
 
-/// Scan for the highest-ranking level token and return it with its byte range.
+/// Scan for the leftmost level token and return it with its byte range.
+///
+/// The first hit is the log-level column in standard formats. Later words like
+/// lowercase `alert` inside a message must not steal the tint from `INFO`.
 fn detect_level(text: &str) -> Option<(Level, std::ops::Range<usize>)> {
     // Scan whitespace/punctuation-separated tokens so "TERROR" / "warningly"
     // don't false-positive, while "ERROR", "[WARN]", "level=info" still match.
     let bytes = text.as_bytes();
     let mut i = 0;
-    let mut best: Option<(Level, std::ops::Range<usize>)> = None;
     while i < bytes.len() {
         while i < bytes.len() && !bytes[i].is_ascii_alphabetic() {
             i += 1;
@@ -748,29 +756,10 @@ fn detect_level(text: &str) -> Option<(Level, std::ops::Range<usize>)> {
             None
         };
         if let Some(l) = level {
-            let range = start..i;
-            best = Some(match best {
-                None => (l, range),
-                Some((prev, prev_range)) => {
-                    if rank(l) > rank(prev) {
-                        (l, range)
-                    } else {
-                        (prev, prev_range)
-                    }
-                }
-            });
+            return Some((l, start..i));
         }
     }
-    best
-}
-
-fn rank(l: Level) -> u8 {
-    match l {
-        Level::Error => 3,
-        Level::Warn => 2,
-        Level::Info => 1,
-        Level::Debug => 0,
-    }
+    None
 }
 
 fn eq_ignore_ascii(a: &str, b: &str) -> bool {
@@ -907,16 +896,18 @@ mod tests {
         );
         assert_eq!(detect_level("no level here"), None);
         assert_eq!(detect_level("TERROR warningly"), None);
-        // Highest severity wins when multiple appear.
-        assert_eq!(
-            detect_level("INFO then ERROR"),
-            Some((Level::Error, 10..15))
-        );
+        // Leftmost token is the level column — later ERROR does not win.
+        assert_eq!(detect_level("INFO then ERROR"), Some((Level::Info, 0..4)));
         // ALERT ranks with ERROR.
         assert_eq!(
             detect_level("ALERT blocked").map(|(l, _)| l),
             Some(Level::Error)
         );
+        // Message keyword must not steal the INFO column tint.
+        let line = "2026-07-22 10:01:04 INFO  User acknowledged alert, process terminated";
+        let (level, range) = detect_level(line).unwrap();
+        assert_eq!(level, Level::Info);
+        assert_eq!(&line[range], "INFO");
     }
 
     #[test]
@@ -959,6 +950,7 @@ mod tests {
         assert_eq!(Theme::status_tone("filter cleared"), StatusTone::Neutral);
         assert_eq!(Theme::status_tone("no matches"), StatusTone::Error);
         assert_eq!(Theme::status_tone("match 1 of 5"), StatusTone::Neutral);
+        assert_eq!(Theme::status_tone("occurrence 1 of 5"), StatusTone::Neutral);
     }
 
     #[test]

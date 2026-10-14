@@ -965,12 +965,14 @@ fn render_line_spans<'a>(
             continue;
         }
         if current_search.is_some_and(|(s, e)| s <= a && b <= e) {
-            // Current match: reverse video (baseline) on the search fill.
+            // Current match: solid accent fill + dark ink. Do not stack REVERSED
+            // on filled() — that swaps to accent-on-dark and loses the block on
+            // Ansi16/conhost. Other hits use the quieter search_bg fill.
             spans.push(Span::styled(
                 &text[a..b],
                 theme
                     .filled(theme.search_current_bg)
-                    .add_modifier(Modifier::REVERSED),
+                    .add_modifier(Modifier::BOLD),
             ));
         } else if search_ranges.iter().any(|&(s, e)| s <= a && b <= e) {
             spans.push(Span::styled(&text[a..b], theme.filled(theme.search_bg)));
@@ -1105,12 +1107,24 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
         if h_scroll > 0 {
             spans.push(Span::styled("‹", Style::default().fg(t.text_dim)));
         }
-        // Current search match: first hit on the cursor line (reverse video).
+        // Current search occurrence: focused span (occurrence nav), mapped into
+        // the horizontally scrolled `text` slice.
         let current_search = if is_cursor {
-            search.and_then(|re| {
-                re.find(text)
-                    .filter(|m| m.start() != m.end())
-                    .map(|m| (m.start(), m.end()))
+            app.search.as_ref().and_then(|s| {
+                let focus = s.focus_start;
+                s.regex.find_iter(full).find_map(|m| {
+                    if m.start() == focus && m.start() != m.end() {
+                        let start = m.start().saturating_sub(byte_off);
+                        let end = m.end().saturating_sub(byte_off);
+                        if end > start && start < text.len() {
+                            Some((start.min(text.len()), end.min(text.len())))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
             })
         } else {
             None
@@ -1272,10 +1286,11 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
             if let Some(s) = &app.search {
                 let raw: String = s.raw.chars().take(20).collect();
                 let (idx, total) = search_match_index(app);
+                // Occurrence count (not hit lines) — matches highlighted spans.
                 let match_label = if total == 0 {
                     "no matches".to_string()
                 } else {
-                    format!("match {idx} of {total}")
+                    format!("occurrence {idx} of {total}")
                 };
                 let match_style = if total == 0 {
                     t.status_style(StatusTone::Error)
@@ -1328,8 +1343,8 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(Line::from(spans)).style(base), area);
 }
 
-/// Current search hit index (1-based) and total for the status counter.
-/// Counts hit *lines* (same granularity as `n`/`N` navigation).
+/// Current search occurrence index (1-based) and total for the status counter.
+/// Counts *occurrences* (same granularity as highlighted spans / `n`/`N`).
 fn search_match_index(app: &App) -> (usize, usize) {
     if !app.has_files() {
         return (0, 0);
@@ -1338,21 +1353,27 @@ fn search_match_index(app: &App) -> (usize, usize) {
         return (0, 0);
     };
     let file = app.file();
-    let mut hit_lines: Vec<usize> = Vec::new();
+    let mut hits: Vec<(usize, usize)> = Vec::new();
     for (vp, &line_idx) in file.view.iter().enumerate() {
-        if search.regex.find(&file.lines[line_idx]).is_some() {
-            hit_lines.push(vp);
+        for m in search.regex.find_iter(&file.lines[line_idx]) {
+            if m.start() != m.end() {
+                hits.push((vp, m.start()));
+            }
         }
     }
-    let total = hit_lines.len();
+    let total = hits.len();
     if total == 0 {
         return (0, 0);
     }
-    let current = match hit_lines.binary_search(&file.view_pos) {
+    let cur = (file.view_pos, search.focus_start);
+    let current = match hits.binary_search(&cur) {
         Ok(idx) => idx + 1,
         Err(idx) => {
-            // Nearest hit at or before the cursor; wrap sensibly.
-            if idx == 0 { 1 } else { idx }
+            if idx == 0 {
+                1
+            } else {
+                idx
+            }
         }
     };
     (current.min(total), total)
@@ -1558,15 +1579,22 @@ fn draw_findings(frame: &mut Frame, app: &mut App, area: Rect) {
     );
     let block = app.theme.panel(&title, true);
     let inner = block.inner(popup);
-    // Punch out the popup plus a 1-cell halo so no underlying border/bar glyphs
-    // show through around the frame.
-    let halo = Rect {
-        x: popup.x.saturating_sub(1),
-        y: popup.y.saturating_sub(1),
-        width: (popup.width + 2).min(area.width.saturating_sub(popup.x.saturating_sub(1))),
-        height: (popup.height + 2).min(area.height.saturating_sub(popup.y.saturating_sub(1))),
+    // Clear/dim the main pane behind the inset popup so dashed L/R borders
+    // cannot show through. Keep the header (row 0) and status (last row) so
+    // chrome and export feedback stay visible during the overlay.
+    let backdrop = Rect {
+        x: area.x,
+        y: area.y.saturating_add(1),
+        width: area.width,
+        height: area.height.saturating_sub(2),
     };
-    frame.render_widget(Clear, halo);
+    if backdrop.height > 0 {
+        frame.render_widget(Clear, backdrop);
+        frame.render_widget(
+            Paragraph::new("").style(Style::default().bg(app.theme.bg)),
+            backdrop,
+        );
+    }
     frame.render_widget(Clear, popup);
     frame.render_widget(block, popup);
 
@@ -3066,15 +3094,55 @@ mod tests {
             Some((0, 5)),
             &theme,
         );
-        assert!(
-            out[0].style.add_modifier.contains(Modifier::REVERSED)
-                || out[0]
-                    .style
-                    .bg
-                    .is_some_and(|c| c == theme.search_current_bg),
-            "current match should reverse or use current search fill: {:?}",
+        assert_eq!(
+            out[0].style.bg,
+            Some(theme.search_current_bg),
+            "current match should use the accent search fill: {:?}",
             out[0].style
         );
+        assert_eq!(
+            out[0].style.fg,
+            Some(theme.match_fg),
+            "current match keeps dark chip ink on the fill: {:?}",
+            out[0].style
+        );
+        // Other hits on the same line use the quieter search_bg.
+        let other = render_line_spans(
+            "ERROR and ERROR",
+            "ERROR and ERROR",
+            0,
+            &[],
+            &[],
+            Some(&search),
+            Some((0, 5)),
+            &theme,
+        );
+        let second = other
+            .iter()
+            .filter(|s| s.content.as_ref() == "ERROR")
+            .nth(1)
+            .expect("second ERROR");
+        assert_eq!(second.style.bg, Some(theme.search_bg));
+    }
+
+    #[test]
+    fn render_line_spans_tints_info_not_message_alert() {
+        let theme = Theme::signal(theme::ColorDepth::Truecolor, false);
+        let line = "2026-07-22 10:01:04 INFO  User acknowledged alert, process terminated";
+        let out = render_line_spans(line, line, 0, &[], &[], None, None, &theme);
+        let info = out.iter().find(|s| s.content.as_ref() == "INFO").unwrap();
+        assert_eq!(info.style.fg, Some(theme.level_info));
+        let alert = out
+            .iter()
+            .find(|s| s.content.as_ref().contains("alert"))
+            .expect("message span containing alert");
+        assert_eq!(
+            alert.style.fg,
+            Some(theme.text),
+            "message 'alert' must stay neutral, not level-error: {:?}",
+            alert.style
+        );
+        assert_ne!(alert.style.fg, Some(theme.level_error));
     }
 
     #[test]
@@ -3160,12 +3228,14 @@ mod tests {
     /// a long line with many matches rescan the whole line hundreds of times per
     /// frame (~13 ms per line in release, i.e. a visibly frozen viewport).
     ///
-    /// Compares a busy line against the same line rendered as a single span, so
-    /// the bound is a ratio and does not depend on machine speed or build profile.
+    /// Uses a line with no early level token so detect_level walks the whole
+    /// string in both arms; the ratio then isolates search segmentation cost.
     #[test]
     fn render_line_spans_stays_fast_on_a_long_busy_line() {
         let theme = Theme::dark();
-        let mut line = String::from("2026-07-22 10:00:00 ERROR ");
+        // No INFO/ERROR/… token — otherwise leftmost detect_level returns in
+        // microseconds and the busy/plain ratio looks artificially huge.
+        let mut line = String::from("2026-07-22 10:00:00 NOTE ");
         while line.len() < 32 * 1024 {
             line.push_str("connection refused to host xyz; retrying now. ");
         }
@@ -3180,10 +3250,10 @@ mod tests {
             start.elapsed().max(std::time::Duration::from_nanos(1))
         };
 
-        // One span, one level scan: the floor for this line.
+        // One span, one full-line level scan: the floor for this line.
         let plain = time_it(None);
         // MAX_SEARCH_RANGES segments: must add segmentation work, not 256 more
-        // full-line scans.
+        // full-line level scans.
         let busy = time_it(Some(&search));
         let ratio = busy.as_secs_f64() / plain.as_secs_f64();
         assert!(
@@ -3286,8 +3356,8 @@ mod tests {
                 "depth {depth:?} search chrome: {search_text}"
             );
             assert!(
-                search_text.contains("match ") && search_text.contains(" of "),
-                "depth {depth:?} missing match count: {search_text}"
+                search_text.contains("occurrence ") && search_text.contains(" of "),
+                "depth {depth:?} missing occurrence count: {search_text}"
             );
 
             // Help overlay.
@@ -3314,8 +3384,71 @@ mod tests {
                         || findings_text.contains("MED"),
                     "depth {depth:?} findings: {findings_text}"
                 );
+                // Backdrop clears the main pane body; dashed log borders must
+                // not remain visible left/right of the inset popup.
+                let buffer = term.backend().buffer();
+                let mid_y = buffer.area.height / 2;
+                let left_edge = buffer[(0, mid_y)].symbol();
+                let right_edge = buffer[(buffer.area.width - 1, mid_y)].symbol();
+                assert!(
+                    left_edge != "│" && left_edge != "|",
+                    "depth {depth:?} left dashed border still visible behind findings"
+                );
+                assert!(
+                    right_edge != "│" && right_edge != "|",
+                    "depth {depth:?} right dashed border still visible behind findings"
+                );
             }
         }
+    }
+
+    #[test]
+    fn findings_chips_use_dark_ink_on_severity_fills() {
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+        use ratatui::style::Color;
+
+        let mut app = signal_app_for_depth(theme::ColorDepth::Truecolor, false);
+        assert!(!app.findings.is_empty());
+        app.show_findings = true;
+        let mut term = Terminal::new(TestBackend::new(110, 28)).unwrap();
+        term.draw(|frame| draw(frame, &mut app)).unwrap();
+        let buffer = term.backend().buffer();
+        let ink = app.theme.match_fg;
+        let high_bg = app.theme.sev_high;
+        let med_bg = app.theme.sev_med;
+        let mut saw_high = false;
+        let mut saw_med = false;
+        for y in 0..buffer.area.height {
+            for x in 0..buffer.area.width {
+                let cell = &buffer[(x, y)];
+                let ch = cell.symbol();
+                if cell.bg != high_bg && cell.bg != med_bg {
+                    continue;
+                }
+                if ch.trim().is_empty() {
+                    continue;
+                }
+                assert_eq!(
+                    cell.fg, ink,
+                    "chip glyph {ch:?} at ({x},{y}) must use match_fg ink, got {:?}",
+                    cell.fg
+                );
+                if matches!(ink, Color::Rgb(0x0B, 0x0F, 0x14)) {
+                    // Exact Signal dark chip ink.
+                } else {
+                    panic!("expected #0B0F14 match_fg, got {ink:?}");
+                }
+                if cell.bg == high_bg {
+                    saw_high = true;
+                }
+                if cell.bg == med_bg {
+                    saw_med = true;
+                }
+            }
+        }
+        assert!(saw_high, "expected a HIGH severity chip cell");
+        assert!(saw_med, "expected a MED severity chip cell");
     }
 
     /// When `SIGNAL_SHOTS_DIR` is set, dump TestBackend cell grids as JSON for

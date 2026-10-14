@@ -246,12 +246,12 @@ pub struct LogFile {
     ///
     /// Always strictly ascending, which lets lookups use `binary_search`.
     pub view: Vec<usize>,
-    /// Cached `view` positions of the active match set (search hits when a search
-    /// is on, else highlight hits), built lazily by
+    /// Cached active matches as `(view_pos, byte_start)` pairs, built lazily by
     /// [`App::ensure_match_positions`] so `n`/`N` do not re-scan the whole file
-    /// on every keypress. `None` means "not computed yet"; both writers of `view`
-    /// and of the match data clear it.
-    match_positions: Option<Vec<usize>>,
+    /// on every keypress. Search mode stores one entry per occurrence; highlight
+    /// mode stores one entry per hit line (`byte_start` 0). `None` means "not
+    /// computed yet"; writers of `view` / match data clear it.
+    match_positions: Option<Vec<(usize, usize)>>,
     /// Cursor position as an index *into `view`*.
     pub view_pos: usize,
     /// Index into `view` of the first visible row.
@@ -483,6 +483,10 @@ pub enum InputKind {
 pub struct Search {
     pub raw: String,
     pub regex: Regex,
+    /// Byte start of the focused occurrence within the current absolute line.
+    /// Used so `n`/`N` can land on a second hit on the same line and so the
+    /// painter reverse-highlights that span (not just the first on the line).
+    pub focus_start: usize,
 }
 
 pub struct App {
@@ -1132,18 +1136,20 @@ impl App {
                 self.search = Some(Search {
                     raw: text.to_string(),
                     regex,
+                    focus_start: 0,
                 });
                 self.rebuild_views();
                 self.jump_to_first_match();
                 let hits = self.search_hits();
                 // Neutral/accent wording — never embed the query (a query like
                 // ERROR would trip the status Error tone via substring match).
-                // Red is reserved for zero hits.
-                self.status = Some(if hits == 0 {
-                    "no matches".into()
+                // Red is reserved for zero hits. Count is occurrences (not lines).
+                if hits == 0 {
+                    self.status = Some("no matches".into());
                 } else {
-                    format!("match 1 of {hits}")
-                });
+                    self.sync_search_focus_to_cursor();
+                    self.status = Some(format!("occurrence 1 of {hits}"));
+                }
             }
             Err(e) => self.status = Some(format!("{e}")),
         }
@@ -1264,6 +1270,7 @@ impl App {
                 break;
             }
         }
+        self.sync_search_focus_to_cursor();
         self.ensure_cursor_visible();
     }
 
@@ -1704,29 +1711,30 @@ impl App {
         }
         // Read the cached hit list, pick the target, then drop the borrow before
         // mutating — no copy of the (potentially 250k-entry) list per keypress.
-        let (idx, pos, total) = {
+        let (idx, pos, byte_start, total) = {
             let file = self.file();
             let hits = file
                 .match_positions
                 .as_ref()
                 .expect("ensure_match_positions populated the cache");
-            let cur = file.view_pos;
-            // `hits` is ascending, so the neighbour is a binary search: walking it
-            // linearly would get slower the deeper into the file the cursor is.
+            let cur = (
+                file.view_pos,
+                self.search.as_ref().map(|s| s.focus_start).unwrap_or(0),
+            );
+            // Hits are ascending by (view_pos, byte_start).
             let idx = if dir > 0 {
-                // First hit after the cursor, wrapping to the first.
-                let after = hits.partition_point(|&p| p <= cur);
+                let after = hits.partition_point(|&(p, b)| (p, b) <= cur);
                 if after == hits.len() { 0 } else { after }
             } else {
-                // Last hit before the cursor, wrapping to the last.
-                match hits.partition_point(|&p| p < cur) {
+                match hits.partition_point(|&(p, b)| (p, b) < cur) {
                     0 => hits.len() - 1,
                     k => k - 1,
                 }
             };
-            (idx, hits[idx], hits.len())
+            let (pos, byte_start) = hits[idx];
+            (idx, pos, byte_start, hits.len())
         };
-        self.apply_match_jump(idx, pos, total);
+        self.apply_match_jump(idx, pos, byte_start, total);
     }
 
     /// Jump to an absolute hit index (`0` = first). Empty / no-file cases share
@@ -1739,16 +1747,17 @@ impl App {
         if !self.ensure_match_positions() {
             return;
         }
-        let (idx, pos, total) = {
+        let (idx, pos, byte_start, total) = {
             let hits = self
                 .file()
                 .match_positions
                 .as_ref()
                 .expect("ensure_match_positions populated the cache");
             let idx = idx.min(hits.len() - 1);
-            (idx, hits[idx], hits.len())
+            let (pos, byte_start) = hits[idx];
+            (idx, pos, byte_start, hits.len())
         };
-        self.apply_match_jump(idx, pos, total);
+        self.apply_match_jump(idx, pos, byte_start, total);
     }
 
     /// Populate `LogFile::match_positions` for the current file if it is missing.
@@ -1759,14 +1768,31 @@ impl App {
     /// changes, otherwise every `n`/`N` press would rescan the file.
     fn ensure_match_positions(&mut self) -> bool {
         if self.file().match_positions.is_none() {
-            let hits: Vec<usize> = self
-                .file()
-                .view
-                .iter()
-                .enumerate()
-                .filter(|&(_, &line)| self.is_active_match(line))
-                .map(|(pos, _)| pos)
-                .collect();
+            let hits: Vec<(usize, usize)> = if let Some(search) = &self.search {
+                // One entry per occurrence so multi-hit lines (e.g. ERROR + error)
+                // are counted and visited separately.
+                let mut out = Vec::new();
+                for (vp, &line_idx) in self.file().view.iter().enumerate() {
+                    for m in search
+                        .regex
+                        .find_iter(&self.file().lines[line_idx])
+                        .take(MAX_MATCHES_PER_LINE)
+                    {
+                        if m.start() != m.end() {
+                            out.push((vp, m.start()));
+                        }
+                    }
+                }
+                out
+            } else {
+                self.file()
+                    .view
+                    .iter()
+                    .enumerate()
+                    .filter(|&(_, &line)| self.is_active_match(line))
+                    .map(|(pos, _)| (pos, 0usize))
+                    .collect()
+            };
             self.file_mut().match_positions = Some(hits);
         }
         let empty = self
@@ -1786,12 +1812,43 @@ impl App {
     }
 
     /// Move the cursor to hit `idx` (0-based) at view position `pos`, of `total`.
-    fn apply_match_jump(&mut self, idx: usize, pos: usize, total: usize) {
+    fn apply_match_jump(&mut self, idx: usize, pos: usize, byte_start: usize, total: usize) {
         let line = self.file().view.get(pos).copied().unwrap_or(pos);
         self.file_mut().view_pos = pos;
+        if let Some(s) = self.search.as_mut() {
+            s.focus_start = byte_start;
+        }
         self.ensure_cursor_visible();
         self.clamp_scroll();
-        self.status = Some(format!("match {} of {total} · line {}", idx + 1, line + 1));
+        let label = if self.search.is_some() {
+            "occurrence"
+        } else {
+            "match"
+        };
+        self.status = Some(format!(
+            "{label} {} of {total} · line {}",
+            idx + 1,
+            line + 1
+        ));
+    }
+
+    /// Point search focus at the first occurrence on the cursor line (if any).
+    fn sync_search_focus_to_cursor(&mut self) {
+        let Some(search) = self.search.as_ref() else {
+            return;
+        };
+        let line_idx = self.file().view.get(self.file().view_pos).copied();
+        let Some(line_idx) = line_idx else {
+            return;
+        };
+        let start = search
+            .regex
+            .find(&self.file().lines[line_idx])
+            .map(|m| m.start())
+            .unwrap_or(0);
+        if let Some(s) = self.search.as_mut() {
+            s.focus_start = start;
+        }
     }
 
     /// Scroll the viewport by `delta` lines (mouse wheel / scrollbar), dragging
@@ -3030,6 +3087,43 @@ mod tests {
     }
 
     #[test]
+    fn search_counts_occurrences_not_just_hit_lines() {
+        let mut app = app_with_paths(&["samples/sample.log"]);
+        app.set_search("ERROR");
+        // sample.log: ERROR on lines 4,6,12,15 plus lowercase "error" on line 12 → 5.
+        assert_eq!(app.search_hits(), 5, "search counts occurrences");
+        let status = app.status.as_deref().unwrap_or("");
+        assert!(
+            status.starts_with("occurrence 1 of 5"),
+            "status labels occurrences: {status:?}"
+        );
+        // n/N visits the second hit on the multi-match line separately.
+        assert!(app.ensure_match_positions());
+        let hits = app.file().match_positions.as_ref().unwrap().clone();
+        assert_eq!(hits.len(), 5, "nav cache stores every occurrence: {hits:?}");
+        // Two hits share a view_pos (line 12).
+        let dup = hits.iter().map(|(p, _)| *p).collect::<Vec<_>>();
+        assert!(
+            dup.windows(2).any(|w| w[0] == w[1]),
+            "expected a multi-occurrence line in {dup:?}"
+        );
+        // From occ 1: next→2, next→3 (first on multi-hit line), next→4 (second).
+        app.next_match();
+        app.next_match();
+        let same_line = app.file().view_pos;
+        let first_focus = app.search.as_ref().unwrap().focus_start;
+        app.next_match();
+        assert_eq!(app.file().view_pos, same_line, "stays on multi-hit line");
+        assert_ne!(
+            app.search.as_ref().unwrap().focus_start,
+            first_focus,
+            "focus moves between occurrences on the same line"
+        );
+        let status = app.status.as_deref().unwrap_or("");
+        assert!(status.starts_with("occurrence 4 of 5"), "{status:?}");
+    }
+
+    #[test]
     fn search_without_files_does_not_panic() {
         let mut app = App::new(&[], Vec::new(), false).unwrap();
         assert!(!app.has_files());
@@ -3738,10 +3832,10 @@ mod tests {
         let start = app.file().view_pos;
         app.next_match();
         assert!(app.file().view_pos > start || hit_lines <= 1);
+        let status = app.status.as_deref().unwrap_or("");
         assert!(
-            app.status.as_deref().unwrap_or("").starts_with("match "),
-            "next_match should report position: {:?}",
-            app.status
+            status.starts_with("occurrence ") || status.starts_with("match "),
+            "next_match should report position: {status:?}"
         );
         app.prev_match();
         assert_eq!(app.file().view_pos, start);
@@ -3874,12 +3968,12 @@ mod tests {
     #[test]
     fn match_nav_cache_follows_search_filter_and_rule_changes() {
         fn hit_total(app: &App) -> usize {
-            // Status is "match i of n · line L" (or the initial "match 1 of n").
+            // Status is "match|occurrence i of n · line L".
             let s = app.status.as_deref().unwrap_or("");
             s.split_once(" of ")
                 .and_then(|(_, rest)| rest.split_whitespace().next())
                 .and_then(|n| n.parse().ok())
-                .unwrap_or_else(|| panic!("expected 'match i of n', got {s:?}"))
+                .unwrap_or_else(|| panic!("expected '… i of n', got {s:?}"))
         }
 
         let mut app = app_with_paths(&["samples/sample.log"]);
@@ -3894,7 +3988,8 @@ mod tests {
         search(&mut app, "ERROR");
         app.go_top();
         app.next_match();
-        assert_eq!(hit_total(&app), 4, "{:?}", app.status);
+        // 5 occurrences (4 ERROR + 1 "error" on line 12), not 4 hit lines.
+        assert_eq!(hit_total(&app), 5, "{:?}", app.status);
 
         // Switching the search must not reuse the previous hit list.
         search(&mut app, "WARN");

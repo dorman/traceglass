@@ -716,8 +716,8 @@ mod tests {
             app.status
                 .as_deref()
                 .unwrap_or("")
-                .starts_with("match 1 of "),
-            "Enter should report match 1 of n: {:?}",
+                .starts_with("occurrence 1 of "),
+            "Enter should report occurrence 1 of n: {:?}",
             app.status
         );
     }

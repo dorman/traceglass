@@ -56,6 +56,20 @@ def render(path: Path, out: Path) -> None:
             if ch.strip() == "" and ch != " ":
                 continue
             draw.text((x0 + 1, y0 + 1), ch[:2], fill=fg, font=font)
+            # Snap anti-aliased glyph pixels toward exact fg so chip ink
+            # (#0B0F14 on amber) stays verifiable in screenshots.
+            if fg != bg and cell.get("fg") is not None and cell.get("bg") is not None:
+                for dy in range(CELL_H):
+                    for dx in range(CELL_W):
+                        px, py = x0 + dx, y0 + dy
+                        p = img.getpixel((px, py))
+                        if p == bg:
+                            continue
+                        # Closer to fg than bg → force solid ink.
+                        df = sum(abs(p[i] - fg[i]) for i in range(3))
+                        db = sum(abs(p[i] - bg[i]) for i in range(3))
+                        if df <= db:
+                            img.putpixel((px, py), fg)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out)
