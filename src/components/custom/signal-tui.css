@@ -100,23 +100,32 @@
 .signal-tui__frame {
   position: relative;
   flex: 1 1 auto;
-  margin: 0.45rem 0.55rem 0.35rem;
-  padding: 0.55rem 0.45rem 0.45rem;
+  /* Gap above the dashed border so the inlaid title clears the header bar
+   * the way ratatui panel titles sit on the top border with room above. */
+  margin: 1.05rem 0.55rem 0.45rem;
+  padding: 0.7rem 0.45rem 0.45rem;
   border: 1px dashed var(--signal-accent);
   background: var(--signal-bg);
   min-height: 0;
+  overflow: visible;
+}
+
+.signal-tui__frame--findings {
   overflow: hidden;
+  min-height: 22rem;
 }
 
 .signal-tui__frame-label {
   position: absolute;
-  top: -0.65em;
+  top: -0.55em;
   left: 0.65rem;
-  padding: 0 0.35rem;
+  z-index: 1;
+  padding: 0 0.4rem;
   background: var(--signal-bg);
   color: var(--signal-accent);
   font-size: 11px;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .signal-tui__log {
@@ -132,13 +141,14 @@
   grid-template-columns: 2.1ch 1.2ch max-content max-content 1fr;
   column-gap: 0.55rem;
   align-items: baseline;
-  padding: 0.05rem 0.35rem 0.05rem 0.2rem;
-  border-left: 2px solid transparent;
+  padding: 0.05rem 0.35rem 0.05rem 0.35rem;
+  border-left: 3px solid transparent;
 }
 
 .signal-tui__row--selected {
   background: var(--signal-cursor);
   border-left-color: var(--signal-accent);
+  box-shadow: inset 3px 0 0 var(--signal-accent);
 }
 
 .signal-tui__ln {
@@ -186,8 +196,7 @@
 .signal-tui__msg {
   color: var(--signal-text);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   white-space: pre;
 }
 
@@ -272,26 +281,26 @@
 
 .signal-tui__sev-bar {
   display: flex;
-  height: 0.7rem;
+  height: 0.55rem;
   overflow: hidden;
-  letter-spacing: -0.08em;
-  font-size: 0.7rem;
-  line-height: 0.7rem;
-  color: transparent;
   background: var(--signal-border);
 }
 
-.signal-tui__sev-bar > span {
+.signal-tui__sev-bar-seg {
   display: block;
   height: 100%;
-  /* Approximate CLI ▰ blocks with a dashed fill feel. */
-  background-image: repeating-linear-gradient(
-    90deg,
-    currentColor 0 0.55ch,
-    transparent 0.55ch 0.85ch
-  );
-  background-color: transparent;
-  color: inherit;
+}
+
+.signal-tui__sev-bar-seg--high {
+  background: var(--signal-sev-high);
+}
+
+.signal-tui__sev-bar-seg--med {
+  background: var(--signal-sev-med);
+}
+
+.signal-tui__sev-bar-seg--crit {
+  background: var(--signal-sev-crit);
 }
 
 .signal-tui__filter {
@@ -313,19 +322,30 @@
   color: var(--signal-match-fg);
 }
 
+.signal-tui__finding-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-height: 0;
+  overflow: auto;
+}
+
 .signal-tui__finding {
-  display: grid;
-  grid-template-columns: max-content 1fr max-content;
+  display: flex;
   gap: 0.55rem;
-  align-items: center;
+  align-items: baseline;
   padding: 0.2rem 0.35rem;
+  border-left: 3px solid transparent;
 }
 
 .signal-tui__finding--selected {
   background: var(--signal-cursor);
+  border-left-color: var(--signal-accent);
+  box-shadow: inset 3px 0 0 var(--signal-accent);
 }
 
 .signal-tui__badge {
+  flex: 0 0 auto;
   padding: 0.05rem 0.4rem;
   border-radius: 2px;
   font-weight: 700;
@@ -344,6 +364,7 @@
 
 .signal-tui__finding-title {
   color: var(--signal-text);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -351,6 +372,7 @@
 
 .signal-tui__finding-loc {
   color: var(--signal-text-dim);
+  font-weight: 400;
 }
 
 .signal-tui__detail {
@@ -380,6 +402,18 @@
 
 .signal-tui__detail-meta {
   color: var(--signal-accent);
+  font-weight: 700;
+}
+
+.signal-tui__detail-meta-row {
+  margin-bottom: 0.25rem;
+  color: var(--signal-text-dim);
+}
+
+.signal-tui__detail-body {
+  margin-top: 0.2rem;
+  color: var(--signal-text-dim);
+  white-space: pre-wrap;
 }
 
 .signal-tui__scene {

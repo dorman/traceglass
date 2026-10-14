@@ -15,10 +15,23 @@ type LogLine = {
   n: number;
   ts: string;
   level: Level;
+  /** Literal message text from samples/sample.log — render escaped, never strip <>\\. */
   message: string;
   finding?: Severity;
 };
 
+type Finding = {
+  severity: 'high' | 'med';
+  title: string;
+  loc: string;
+  category: string;
+  id: string;
+  source: string;
+  rationale: string;
+  description: string;
+};
+
+/** Exact lines from `traceglass/samples/sample.log` (literal angle brackets + backslashes). */
 const LINES: LogLine[] = [
   { n: 1, ts: '2026-07-22 10:00:01', level: 'INFO', message: 'Starting AV agent service v14.2.1' },
   {
@@ -32,14 +45,13 @@ const LINES: LogLine[] = [
     ts: '2026-07-22 10:00:05',
     level: 'WARN',
     message: 'Real-time protection module took 3200ms to initialize',
-    finding: 'med',
   },
   {
     n: 4,
     ts: '2026-07-22 10:00:07',
     level: 'ERROR',
     message: 'Failed to connect to update server: timeout after 30000ms',
-    finding: 'high',
+    finding: 'med',
   },
   {
     n: 5,
@@ -88,7 +100,6 @@ const LINES: LogLine[] = [
     ts: '2026-07-22 10:05:45',
     level: 'WARN',
     message: 'Retrying scan on locked file, attempt 1',
-    finding: 'med',
   },
   {
     n: 14,
@@ -105,17 +116,96 @@ const LINES: LogLine[] = [
   },
 ];
 
+/** 7 findings matching the CLI / engine catalog for sample.log (5 HIGH + 2 MED). */
+const FINDINGS: Finding[] = [
+  {
+    severity: 'high',
+    title: 'Certificate validation failure',
+    loc: 'sample.log:6',
+    category: 'integrity',
+    id: 'certificate-validation-failure',
+    source: 'builtin',
+    rationale:
+      'High because a failed certificate check can expose a broken or intercepted trust path.',
+    description:
+      'A TLS/code-signing certificate failed to validate — the update/comms channel may be misconfigured or intercepted.',
+  },
+  {
+    severity: 'high',
+    title: 'Encoded PowerShell command',
+    loc: 'sample.log:8',
+    category: 'suspicious',
+    id: 'powershell-encoded-command',
+    source: 'builtin',
+    rationale:
+      'High because encoded or hidden PowerShell is a common execution-obfuscation signal, but not proof of abuse.',
+    description:
+      'PowerShell invoked with an encoded/hidden command — a very common malware and living-off-the-land technique.',
+  },
+  {
+    severity: 'high',
+    title: 'Process injection / hollowing',
+    loc: 'sample.log:9',
+    category: 'suspicious',
+    id: 'process-injection-hollowing',
+    source: 'builtin',
+    rationale: 'High because injection or hollowing can transfer execution into a trusted process.',
+    description:
+      'Log mentions injection into another process — often used to run code under a trusted process like explorer.exe.',
+  },
+  {
+    severity: 'high',
+    title: 'Resource exhaustion',
+    loc: 'sample.log:12',
+    category: 'resource',
+    id: 'resource-exhaustion',
+    source: 'builtin',
+    rationale:
+      'High because exhausted memory, disk, handles, or I/O capacity can cascade into service failure.',
+    description:
+      'The system ran out of a critical resource (memory/disk/handles) — a frequent root cause of cascading failures.',
+  },
+  {
+    severity: 'high',
+    title: 'Clock / time rollback detected',
+    loc: 'sample.log:15',
+    category: 'integrity',
+    id: 'system-clock-rollback',
+    source: 'builtin',
+    rationale:
+      'High because time manipulation can evade time-based controls or invalidate audit ordering.',
+    description:
+      'System clock manipulation — can indicate license tampering or an attempt to evade time-based checks.',
+  },
+  {
+    severity: 'med',
+    title: 'Update failure',
+    loc: 'sample.log:4',
+    category: 'update',
+    id: 'update-failure',
+    source: 'builtin',
+    rationale:
+      'Medium because stale updates can reduce protection or leave a component behind its expected state.',
+    description:
+      'A product/signature update failed — the client may be running with stale protection.',
+  },
+  {
+    severity: 'med',
+    title: 'Installer rollback',
+    loc: 'sample.log:15',
+    category: 'install',
+    id: 'installer-rollback',
+    source: 'builtin',
+    rationale:
+      'Medium because install or repair did not complete and the product state needs review.',
+    description:
+      'An installation rolled back (e.g. MSI error 1603) — the install/repair did not complete successfully.',
+  },
+];
+
 const SCENES: Scene[] = ['main', 'search', 'findings'];
 const SELECTED = 4;
-const FINDINGS = [
-  { severity: 'high' as const, title: 'Certificate validation failure', loc: 'sample.log:6' },
-  { severity: 'high' as const, title: 'Update server connection timeout', loc: 'sample.log:4' },
-  { severity: 'high' as const, title: 'Suspicious encoded PowerShell', loc: 'sample.log:8' },
-  { severity: 'high' as const, title: 'Process injection blocked', loc: 'sample.log:9' },
-  { severity: 'high' as const, title: 'Disk I/O error during scan', loc: 'sample.log:12' },
-  { severity: 'med' as const, title: 'Slow real-time protection init', loc: 'sample.log:3' },
-  { severity: 'med' as const, title: 'Locked-file scan retry', loc: 'sample.log:13' },
-];
+const SELECTED_FINDING = 0;
 
 function levelClass(level: Level): string {
   switch (level) {
@@ -130,9 +220,8 @@ function levelClass(level: Level): string {
   }
 }
 
+/** Split message for search violet fills without dropping angle-bracket text. */
 function Message({ line, scene }: { line: LogLine; scene: Scene }) {
-  // Message text stays neutral. Only non-current search hits inside the message
-  // pick up the violet fill — never keyword-tint the rest of the line.
   if (scene === 'search' && /\berror\b/i.test(line.message) && line.n !== SELECTED) {
     const parts = line.message.split(/(error)/i);
     return (
@@ -150,6 +239,7 @@ function Message({ line, scene }: { line: LogLine; scene: Scene }) {
     );
   }
 
+  // React text nodes escape <>& — keep the sample line literal.
   return <span className="signal-tui__msg">{line.message}</span>;
 }
 
@@ -245,16 +335,28 @@ function LogBody({ scene }: { scene: Scene }) {
 }
 
 function FindingsPopup() {
+  const selected = FINDINGS[SELECTED_FINDING] ?? FINDINGS[0];
+  if (!selected) return null;
+  // 5 high + 2 med → proportional segments (CLI ▰ mix).
+  const highPct = Math.round((5 / 7) * 100);
+  const medPct = 100 - highPct;
+
   return (
-    <div className="signal-tui__frame" style={{ position: 'relative', minHeight: '22rem' }}>
+    <div className="signal-tui__frame signal-tui__frame--findings">
       <div className="signal-tui__findings-backdrop" aria-hidden="true" />
       <div className="signal-tui__findings" role="dialog" aria-label="Scan findings">
         <div className="signal-tui__findings-title">
           Scan findings – 7 0 crit · 5 high · 2 med · General Triage v0.1.0
         </div>
         <div className="signal-tui__sev-bar" aria-hidden="true">
-          <span style={{ width: '71%', color: signalTheme.sevHigh }} />
-          <span style={{ width: '29%', color: signalTheme.sevMed }} />
+          <span
+            className="signal-tui__sev-bar-seg signal-tui__sev-bar-seg--high"
+            style={{ width: `${highPct}%` }}
+          />
+          <span
+            className="signal-tui__sev-bar-seg signal-tui__sev-bar-seg--med"
+            style={{ width: `${medPct}%` }}
+          />
         </div>
         <div className="signal-tui__filter">
           <span>filter</span>
@@ -264,33 +366,39 @@ function FindingsPopup() {
           <span className="signal-tui__sev signal-tui__sev--med">MED 2</span>
           <span>f/F or ←/→</span>
         </div>
-        {FINDINGS.map((f, i) => (
-          <div
-            key={f.loc}
-            className={cn('signal-tui__finding', i === 0 && 'signal-tui__finding--selected')}
-          >
-            <span className={cn('signal-tui__badge', `signal-tui__badge--${f.severity}`)}>
-              {f.severity.toUpperCase()}
-            </span>
-            <span className="signal-tui__finding-title">{f.title}</span>
-            <span className="signal-tui__finding-loc">{f.loc}</span>
-          </div>
-        ))}
+        <div className="signal-tui__finding-list">
+          {FINDINGS.map((f, i) => (
+            <div
+              key={`${f.id}-${f.loc}`}
+              className={cn(
+                'signal-tui__finding',
+                i === SELECTED_FINDING && 'signal-tui__finding--selected',
+              )}
+            >
+              <span className={cn('signal-tui__badge', `signal-tui__badge--${f.severity}`)}>
+                {f.severity.toUpperCase()}
+              </span>
+              <span className="signal-tui__finding-title">
+                {f.title} <span className="signal-tui__finding-loc">{f.loc}</span>
+              </span>
+            </div>
+          ))}
+        </div>
         <div className="signal-tui__detail">
           <div className="signal-tui__detail-head">
-            <span className="signal-tui__badge signal-tui__badge--high">HIGH</span>
-            <span className="signal-tui__detail-cat">integrity</span>
-            <span className="signal-tui__detail-name">Certificate validation failure</span>
+            <span className={cn('signal-tui__badge', `signal-tui__badge--${selected.severity}`)}>
+              {selected.severity.toUpperCase()}
+            </span>
+            <span className="signal-tui__detail-cat">{selected.category}</span>
+            <span className="signal-tui__detail-name">{selected.title}</span>
           </div>
-          <div>
-            <span className="signal-tui__detail-meta">id</span> cert-validation-failed
-            {' · '}
-            <span className="signal-tui__detail-meta">source</span> builtin
+          <div className="signal-tui__detail-meta-row">
+            <span className="signal-tui__detail-meta">id</span> {selected.id}
+            {'  '}
+            <span className="signal-tui__detail-meta">source</span> {selected.source}
           </div>
-          <div>
-            TLS trust failed while contacting the update host — treat as integrity evidence and jump
-            to the source line for context.
-          </div>
+          <div className="signal-tui__detail-body">{selected.rationale}</div>
+          <div className="signal-tui__detail-body">{selected.description}</div>
         </div>
       </div>
     </div>
@@ -345,3 +453,6 @@ export function SampleLogDemo({ className }: { className?: string }) {
     </section>
   );
 }
+
+/** Exported for unit tests — literal sample.log lines and CLI finding roster. */
+export const __sampleLogDemoTest = { LINES, FINDINGS };
