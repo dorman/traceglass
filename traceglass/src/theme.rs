@@ -115,6 +115,7 @@ pub struct Theme {
     pub bg: Color,
     pub surface: Color,
     pub accent: Color,
+    #[allow(dead_code)] // violet twin of accent; reserved for dual-accent chrome
     pub secondary: Color,
     pub border: Color,
     pub text: Color,
@@ -187,7 +188,8 @@ impl Theme {
         let border = Slot::new(0x2B, 0x30, 0x40, 237, Color::DarkGray);
         let gutter = Slot::new(0x5A, 0x61, 0x72, 241, Color::DarkGray);
         let cursor_bg = Slot::new(0x23, 0x27, 0x31, 236, Color::DarkGray);
-        let match_fg = Slot::new(0x0F, 0x11, 0x17, 233, Color::Black);
+        // Ink on filled chips (HIGH/MED badges need ≥4.5:1 on amber/orange).
+        let match_fg = Slot::new(0x0B, 0x0F, 0x14, 232, Color::Black);
         let search_bg = secondary;
         let search_current = accent;
         let logo_top = Slot::new(0x5B, 0x84, 0xEF, 69, Color::Blue);
@@ -350,11 +352,19 @@ impl Theme {
             .add_modifier(Modifier::BOLD)
     }
 
-    /// The selected-row wash used by the log, findings, settings, and
-    /// watchlist workspaces. Keeping it here prevents one surface from
-    /// silently becoming brighter or heavier than the others.
+    /// The selected-row treatment used by the log, findings, settings, and
+    /// watchlist workspaces.
+    ///
+    /// Truecolor/256: a soft wash that leaves per-span foregrounds intact.
+    /// Ansi16/Mono: `DarkGray` wash (not `REVERSED` — that flipped severity chip
+    /// fills). Callers must paint selected gutter / location text in a light
+    /// fg (`text` / White); dim DarkGray-on-DarkGray is unreadable on conhost.
+    /// Span backgrounds (badges) still win over the wash.
     pub fn selected_row(&self) -> Style {
-        Style::default().bg(self.cursor_bg)
+        match self.depth {
+            ColorDepth::Ansi16 | ColorDepth::Mono => Style::default().bg(Color::DarkGray),
+            ColorDepth::Truecolor | ColorDepth::Ansi256 => Style::default().bg(self.cursor_bg),
+        }
     }
 
     /// Severity badges and dots remain owned by the severity vocabulary rather
@@ -465,12 +475,14 @@ impl Theme {
             .any(|needle| message.contains(needle))
         {
             StatusTone::Progress
+        } else if message.contains("no matches") || message.contains("no search matches") {
+            // Zero-hit search is the one place status goes Error-red.
+            StatusTone::Error
         } else if [
             "cancelled",
             "limit reached",
             "nothing to",
             "no findings",
-            "no matches",
             "empty",
         ]
         .iter()
@@ -945,6 +957,8 @@ mod tests {
         assert_eq!(Theme::status_tone("scan cancelled"), StatusTone::Warning);
         assert_eq!(Theme::status_tone("jumped to L12"), StatusTone::Success);
         assert_eq!(Theme::status_tone("filter cleared"), StatusTone::Neutral);
+        assert_eq!(Theme::status_tone("no matches"), StatusTone::Error);
+        assert_eq!(Theme::status_tone("match 1 of 5"), StatusTone::Neutral);
     }
 
     #[test]

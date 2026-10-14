@@ -46,6 +46,10 @@ def render(path: Path, out: Path) -> None:
         for x, cell in enumerate(row):
             bg = rgb(cell.get("bg")) or DEFAULT_BG
             fg = rgb(cell.get("fg")) or DEFAULT_FG
+            # Match terminal REVERSED: swap fg/bg so Ansi16 selection stays
+            # readable in PNG previews (gutter digits, findings locations).
+            if cell.get("rev"):
+                fg, bg = bg, fg
             x0, y0 = x * CELL_W, y * CELL_H
             draw.rectangle([x0, y0, x0 + CELL_W - 1, y0 + CELL_H - 1], fill=bg)
             ch = cell.get("ch") or " "

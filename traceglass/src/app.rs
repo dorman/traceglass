@@ -1136,7 +1136,14 @@ impl App {
                 self.rebuild_views();
                 self.jump_to_first_match();
                 let hits = self.search_hits();
-                self.status = Some(format!("search '{text}': {hits} match(es)"));
+                // Neutral/accent wording — never embed the query (a query like
+                // ERROR would trip the status Error tone via substring match).
+                // Red is reserved for zero hits.
+                self.status = Some(if hits == 0 {
+                    "no matches".into()
+                } else {
+                    format!("match 1 of {hits}")
+                });
             }
             Err(e) => self.status = Some(format!("{e}")),
         }
@@ -1671,7 +1678,7 @@ impl App {
 
     /// Jump to the first active match (search hits if searching, else highlight
     /// hits). Bound to Enter in the viewer — handy after scrolling away from
-    /// the top hit. Reports `match 1/n · line L` like [`Self::next_match`].
+    /// the top hit. Reports `match 1 of n · line L` like [`Self::next_match`].
     pub fn first_match(&mut self) {
         self.jump_match_to(0);
     }
@@ -1784,7 +1791,7 @@ impl App {
         self.file_mut().view_pos = pos;
         self.ensure_cursor_visible();
         self.clamp_scroll();
-        self.status = Some(format!("match {}/{total} · line {}", idx + 1, line + 1));
+        self.status = Some(format!("match {} of {total} · line {}", idx + 1, line + 1));
     }
 
     /// Scroll the viewport by `delta` lines (mouse wheel / scrollbar), dragging
@@ -3755,16 +3762,22 @@ mod tests {
             "first_match should leave the bottom: {first} vs {away}"
         );
         assert!(
-            app.status.as_deref().unwrap_or("").starts_with("match 1/"),
-            "first_match should report match 1/n: {:?}",
+            app.status
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("match 1 of "),
+            "first_match should report match 1 of n: {:?}",
             app.status
         );
 
-        // Idempotent: already on first hit still reports match 1/n.
+        // Idempotent: already on first hit still reports match 1 of n.
         app.first_match();
         assert_eq!(app.file().view_pos, first);
         assert!(
-            app.status.as_deref().unwrap_or("").starts_with("match 1/"),
+            app.status
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("match 1 of "),
             "{:?}",
             app.status
         );
@@ -3802,8 +3815,11 @@ mod tests {
         app.next_match();
         let first = app.file().view_pos;
         assert!(
-            app.status.as_deref().unwrap_or("").starts_with("match 1/"),
-            "wrap-to-first should report match 1/n: {:?}",
+            app.status
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("match 1 of "),
+            "wrap-to-first should report match 1 of n: {:?}",
             app.status
         );
 
@@ -3812,8 +3828,8 @@ mod tests {
         let last = app.file().view_pos;
         let status = app.status.as_deref().unwrap_or("").to_string();
         assert!(
-            status.starts_with("match ") && status.contains('/'),
-            "prev wrap should report match i/n: {status:?}"
+            status.starts_with("match ") && status.contains(" of "),
+            "prev wrap should report match i of n: {status:?}"
         );
         assert!(last >= first, "last match should be at or after first");
 
@@ -3821,7 +3837,10 @@ mod tests {
         app.next_match();
         assert_eq!(app.file().view_pos, first);
         assert!(
-            app.status.as_deref().unwrap_or("").starts_with("match 1/"),
+            app.status
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("match 1 of "),
             "{:?}",
             app.status
         );
@@ -3855,12 +3874,12 @@ mod tests {
     #[test]
     fn match_nav_cache_follows_search_filter_and_rule_changes() {
         fn hit_total(app: &App) -> usize {
-            // Status is "match i/n · line L".
+            // Status is "match i of n · line L" (or the initial "match 1 of n").
             let s = app.status.as_deref().unwrap_or("");
-            s.split_once('/')
-                .and_then(|(_, rest)| rest.split_once(' '))
-                .and_then(|(n, _)| n.parse().ok())
-                .unwrap_or_else(|| panic!("expected 'match i/n · line L', got {s:?}"))
+            s.split_once(" of ")
+                .and_then(|(_, rest)| rest.split_whitespace().next())
+                .and_then(|n| n.parse().ok())
+                .unwrap_or_else(|| panic!("expected 'match i of n', got {s:?}"))
         }
 
         let mut app = app_with_paths(&["samples/sample.log"]);

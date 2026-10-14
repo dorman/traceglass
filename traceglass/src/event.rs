@@ -713,8 +713,11 @@ mod tests {
             "Enter should jump toward the first match from the bottom"
         );
         assert!(
-            app.status.as_deref().unwrap_or("").starts_with("match 1/"),
-            "Enter should report match 1/n: {:?}",
+            app.status
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("match 1 of "),
+            "Enter should report match 1 of n: {:?}",
             app.status
         );
     }

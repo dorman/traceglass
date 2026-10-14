@@ -14,7 +14,7 @@ use crate::app::{
 };
 use crate::rules::Rule;
 use crate::signatures::Severity;
-use crate::theme::{self, Theme, UiMode};
+use crate::theme::{self, StatusTone, Theme, UiMode};
 use crate::walkthrough::{self, Stage as WalkthroughStage};
 use crate::watchlist::EntryKind;
 
@@ -1086,7 +1086,20 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
             }
             None => spans.push(Span::raw("  ")),
         }
-        let gutter_fg = if bookmarked { t.accent } else { t.gutter };
+        // On Ansi16 selection the row wash is DarkGray — keep the gutter digit
+        // light so it does not disappear into the wash.
+        let gutter_fg = if bookmarked {
+            t.accent
+        } else if is_cursor
+            && matches!(
+                t.depth,
+                theme::ColorDepth::Ansi16 | theme::ColorDepth::Mono
+            )
+        {
+            t.text
+        } else {
+            t.gutter
+        };
         spans.push(Span::styled(
             format!("{:>width$} ", line_idx + 1, width = gutter_width),
             Style::default().fg(gutter_fg),
@@ -1118,8 +1131,9 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
 
         let mut line = Line::from(spans);
         if is_cursor {
-            // Wash only — no whole-row BOLD (Signal / baseline).
-            line = line.style(Style::default().bg(t.cursor_bg));
+            // Soft wash (truecolor) or light Gray wash (Ansi16) — keeps gutter
+            // digits and level tokens readable without flipping chip fills.
+            line = line.style(t.selected_row());
         }
         lines.push(line);
     }
@@ -1261,9 +1275,19 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
             if let Some(s) = &app.search {
                 let raw: String = s.raw.chars().take(20).collect();
                 let (idx, total) = search_match_index(app);
+                let match_label = if total == 0 {
+                    "no matches".to_string()
+                } else {
+                    format!("match {idx} of {total}")
+                };
+                let match_style = if total == 0 {
+                    t.status_style(StatusTone::Error)
+                } else {
+                    Style::default().fg(t.accent).bg(t.status_bg)
+                };
                 spans.push(Span::styled(
-                    format!("/{raw}  {idx} of {total}  "),
-                    Style::default().fg(t.secondary).bg(t.status_bg),
+                    format!("/{raw}  {match_label}  "),
+                    match_style,
                 ));
             }
             let bm = file.bookmarks.len();
@@ -1523,7 +1547,9 @@ fn findings_title(total: usize, hits: usize, counts: [usize; 5]) -> String {
 }
 
 fn draw_findings(frame: &mut Frame, app: &mut App, area: Rect) {
-    let popup = centered_rect(84, 84, area);
+    // Inset ≥2 columns and 1 row so the popup does not sit flush against the
+    // terminal edge or leave a chrome "frame" reading as a dashed border behind.
+    let popup = inset_popup(centered_rect(84, 84, area), area, 2, 1);
     app.regions.findings = popup;
 
     let c = app.severity_counts();
@@ -1535,6 +1561,15 @@ fn draw_findings(frame: &mut Frame, app: &mut App, area: Rect) {
     );
     let block = app.theme.panel(&title, true);
     let inner = block.inner(popup);
+    // Punch out the popup plus a 1-cell halo so no underlying border/bar glyphs
+    // show through around the frame.
+    let halo = Rect {
+        x: popup.x.saturating_sub(1),
+        y: popup.y.saturating_sub(1),
+        width: (popup.width + 2).min(area.width.saturating_sub(popup.x.saturating_sub(1))),
+        height: (popup.height + 2).min(area.height.saturating_sub(popup.y.saturating_sub(1))),
+    };
+    frame.render_widget(Clear, halo);
     frame.render_widget(Clear, popup);
     frame.render_widget(block, popup);
 
@@ -1561,10 +1596,18 @@ fn draw_findings(frame: &mut Frame, app: &mut App, area: Rect) {
     let detail_area = parts[3];
     app.regions.findings_list = list_area;
 
-    frame.render_widget(
-        Paragraph::new(severity_bar(&app.theme, c, bar_area.width)),
-        bar_area,
-    );
+    // 1 column of padding each side so the bar (esp. ASCII `=` on conhost)
+    // cannot spill past the popup's inner width.
+    let bar_inner = bar_area.width.saturating_sub(2);
+    let bar_line = if bar_area.width == 0 {
+        Line::from("")
+    } else {
+        let mut spans = vec![Span::raw(" ")];
+        spans.extend(severity_bar(&app.theme, c, bar_inner).spans);
+        spans.push(Span::raw(" "));
+        Line::from(spans)
+    };
+    frame.render_widget(Paragraph::new(bar_line), bar_area);
     frame.render_widget(
         Paragraph::new(findings_filter_tabs(app, c, tabs_area.width)),
         tabs_area,
@@ -1603,9 +1646,11 @@ fn draw_findings(frame: &mut Frame, app: &mut App, area: Rect) {
         } else {
             Style::default().fg(t.text)
         };
+        // On selection, keep the location readable (text_dim vanishes into the
+        // wash / reverse on Ansi16).
         let loc = Span::styled(
             format!("  {}:{}", file_name, f.line + 1),
-            Style::default().fg(t.text_dim),
+            Style::default().fg(if is_sel { t.text } else { t.text_dim }),
         );
         // A repeat count is the difference between "this happened" and "this
         // happened 900 times", so it is emphasised rather than dimmed. Absent
@@ -2080,6 +2125,24 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+/// Shrink `popup` so it keeps at least `margin_x`/`margin_y` cells from `area`.
+fn inset_popup(popup: Rect, area: Rect, margin_x: u16, margin_y: u16) -> Rect {
+    let min_x = area.x.saturating_add(margin_x);
+    let min_y = area.y.saturating_add(margin_y);
+    let max_x = area.x.saturating_add(area.width.saturating_sub(margin_x));
+    let max_y = area.y.saturating_add(area.height.saturating_sub(margin_y));
+    let x = popup.x.max(min_x);
+    let y = popup.y.max(min_y);
+    let right = (popup.x.saturating_add(popup.width)).min(max_x).max(x);
+    let bottom = (popup.y.saturating_add(popup.height)).min(max_y).max(y);
+    Rect {
+        x,
+        y,
+        width: right.saturating_sub(x),
+        height: bottom.saturating_sub(y),
+    }
 }
 
 /// One keybinding: the key(s), then what they do. An empty key is a
@@ -3147,10 +3210,14 @@ mod tests {
         out
     }
 
-    fn signal_app_for_depth(depth: theme::ColorDepth) -> App {
+    fn signal_app_for_depth(depth: theme::ColorDepth, with_highlight: bool) -> App {
         let theme = Theme::signal(depth, false);
-        let rule = rules::compile_rule("ERROR", false, false, 0, &theme).unwrap();
-        let mut app = App::new(&["samples/sample.log".into()], vec![rule], false).unwrap();
+        let rules = if with_highlight {
+            vec![rules::compile_rule("ERROR", false, false, 0, &theme).unwrap()]
+        } else {
+            Vec::new()
+        };
+        let mut app = App::new(&["samples/sample.log".into()], rules, false).unwrap();
         app.theme = theme;
         app.show_legend = true;
         // Drive a scan synchronously so severity dots/header counts appear.
@@ -3158,6 +3225,10 @@ mod tests {
         while app.scanning() {
             let _ = app.scan_step(4000);
         }
+        // Scan auto-opens the findings panel; callers that want the log view
+        // must close it explicitly.
+        app.show_findings = false;
+        app.status = None;
         app
     }
 
@@ -3172,7 +3243,7 @@ mod tests {
             theme::ColorDepth::Ansi16,
             theme::ColorDepth::Mono,
         ] {
-            let mut app = signal_app_for_depth(depth);
+            let mut app = signal_app_for_depth(depth, false);
             let mut term = Terminal::new(TestBackend::new(100, 24)).unwrap();
             term.draw(|frame| draw(frame, &mut app)).unwrap();
             let text = buffer_text(&term);
@@ -3188,8 +3259,17 @@ mod tests {
                 text.contains("sample.log"),
                 "depth {depth:?} missing file: {text}"
             );
-            // Empty-legend rule is already satisfied (we have a rule); glyph
-            // fallback must kick in on Ansi16/Mono.
+            // Empty highlights rail must not appear.
+            assert!(
+                !text.contains("highlights"),
+                "depth {depth:?} empty legend should be hidden: {text}"
+            );
+            // Log lines visible (findings closed).
+            assert!(
+                text.contains("INFO") || text.contains("ERROR") || text.contains("WARN"),
+                "depth {depth:?} expected log levels in main view: {text}"
+            );
+            // Glyph fallback must kick in on Ansi16/Mono (brand mark / severity).
             if !depth.unicode_glyphs() {
                 assert!(
                     text.contains('*') || text.contains('='),
@@ -3201,6 +3281,7 @@ mod tests {
             app.begin_input(InputKind::Search);
             app.input_buffer = "ERROR".into();
             app.confirm_input();
+            app.show_findings = false;
             term.draw(|frame| draw(frame, &mut app)).unwrap();
             let search_text = buffer_text(&term);
             assert!(
@@ -3208,7 +3289,7 @@ mod tests {
                 "depth {depth:?} search chrome: {search_text}"
             );
             assert!(
-                search_text.contains(" of ") || search_text.contains("/ERROR"),
+                search_text.contains("match ") && search_text.contains(" of "),
                 "depth {depth:?} missing match count: {search_text}"
             );
 
@@ -3327,8 +3408,15 @@ mod tests {
                     }
                     let cell = &buffer[(x, y)];
                     let ch = cell.symbol().replace('\\', "\\\\").replace('"', "\\\"");
+                    // Export REVERSED so PNG previews match conhost (modifier is
+                    // applied at display time; fg/bg alone stay unswapped).
+                    let rev = if cell.modifier.contains(ratatui::style::Modifier::REVERSED) {
+                        ",\"rev\":true"
+                    } else {
+                        ""
+                    };
                     body.push_str(&format!(
-                        "{{\"ch\":\"{ch}\",\"fg\":{},\"bg\":{}}}",
+                        "{{\"ch\":\"{ch}\",\"fg\":{},\"bg\":{}{rev}}}",
                         color_json(cell.fg),
                         color_json(cell.bg)
                     ));
@@ -3343,20 +3431,38 @@ mod tests {
             (theme::ColorDepth::Truecolor, "truecolor"),
             (theme::ColorDepth::Ansi16, "ansi16"),
         ] {
-            let mut app = signal_app_for_depth(depth);
+            // Main: no highlight rules (legend hidden), findings closed, log lines
+            // with level-token tint visible.
+            let mut app = signal_app_for_depth(depth, false);
             let mut term = Terminal::new(TestBackend::new(110, 28)).unwrap();
-
+            // Park on an ERROR line so the cursor wash + level token are obvious.
+            if let Some(pos) = app
+                .file()
+                .view
+                .iter()
+                .position(|&li| app.file().lines[li].contains("ERROR"))
+            {
+                let f = app.file_mut();
+                f.view_pos = pos;
+                f.top = pos.saturating_sub(3);
+            }
             term.draw(|frame| draw(frame, &mut app)).unwrap();
             write_shot(&out, "main", tag, &term);
 
+            // Search: findings closed, current match reverse-video on the cursor.
             app.begin_input(InputKind::Search);
             app.input_buffer = "ERROR".into();
             app.confirm_input();
+            app.show_findings = false;
+            // Keep the status quiet so the chrome (match count / SEARCH pill)
+            // reads clearly in the shot.
+            app.status = None;
             term.draw(|frame| draw(frame, &mut app)).unwrap();
             write_shot(&out, "search", tag, &term);
 
             // Detail/findings: clear search so the overlay is the subject.
             app.clear_search();
+            app.status = None;
             app.show_findings = true;
             assert!(
                 !app.findings.is_empty(),
