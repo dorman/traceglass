@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { BrandMark } from '@/components/custom/brand-mark';
 import { InstallGuide } from '@/components/custom/marketing/install-guide';
 import { RichTextContent } from '@/components/custom/marketing/rich-text-content';
+import { SampleLogDemo } from '@/components/custom/marketing/sample-log-demo';
 import { SignaturesPreview } from '@/components/custom/marketing/signatures-preview';
 import { WaitlistForm } from '@/components/custom/waitlist-form';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,7 @@ import {
   SECTION_LAYOUT_KINDS,
   type SectionLayoutPreset,
 } from '@/lib/contracts/pages';
+import { signalTheme } from '@/lib/signal-theme';
 
 const layoutClassNames: Record<SectionLayoutPreset, string> = {
   'one-column': 'grid-cols-1',
@@ -236,22 +238,7 @@ function HeroSection({ section, content }: { section: PageContentSection; conten
             </div>
           ) : null}
         </div>
-        {terminal ? (
-          <Card className="site-design-card overflow-hidden border-brand-400/30 bg-zinc-950 text-zinc-100 shadow-xl shadow-brand-900/20 dark">
-            <CardHeader className="border-b border-zinc-800 bg-zinc-900/70">
-              <CardTitle className="font-mono text-xs font-medium text-zinc-400">
-                {text(terminal, 'title', 'terminal')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5">
-              <pre className="whitespace-pre-wrap font-mono text-sm leading-7 text-zinc-200">
-                {text(terminal, 'prompt')}
-                {'\n'}
-                {text(terminal, 'lines')}
-              </pre>
-            </CardContent>
-          </Card>
-        ) : null}
+        {terminal ? <SampleLogDemo className="min-h-[28rem] shadow-xl shadow-black/40" /> : null}
       </div>
       <div className="container-page">
         <AssetReferences assets={section.assets} />
@@ -348,7 +335,14 @@ function TerminalCardsSection({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <pre className="whitespace-pre-wrap rounded-lg bg-zinc-950 p-4 font-mono text-xs leading-6 text-zinc-200">
+                <pre
+                  className="signal-tui whitespace-pre-wrap rounded-lg border border-dashed p-4 font-mono text-xs leading-6"
+                  style={{
+                    background: signalTheme.bg,
+                    color: signalTheme.text,
+                    borderColor: signalTheme.accent,
+                  }}
+                >
                   {text(item, 'command')}
                   {'\n'}
                   {text(item, 'output')}

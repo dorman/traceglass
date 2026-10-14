@@ -1,0 +1,439 @@
+/* @polsia:user-owned — Signal CLI chrome for marketing / sample-log demos.
+ * Hex values come from src/lib/signal-theme.ts (traceglass/src/theme.rs). */
+
+.signal-tui {
+  --signal-bg: #0f1117;
+  --signal-surface: #1a1d27;
+  --signal-text: #d7dae0;
+  --signal-text-dim: #737a8c;
+  --signal-accent: #3ee0d8;
+  --signal-secondary: #8b7cf6;
+  --signal-border: #2b3040;
+  --signal-gutter: #5a6172;
+  --signal-cursor: #232731;
+  --signal-match-fg: #0b0f14;
+  --signal-level-error: #e06c75;
+  --signal-level-warn: #e5c07b;
+  --signal-level-info: #7fa7cf;
+  --signal-sev-crit: #ff5f6d;
+  --signal-sev-high: #ff9f43;
+  --signal-sev-med: #f7c948;
+  --signal-fade-ms: 280ms;
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--signal-bg);
+  color: var(--signal-text);
+  font-family:
+    ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  border-radius: 0.65rem;
+  box-shadow: 0 18px 40px color-mix(in srgb, #000 55%, transparent);
+}
+
+.signal-tui *,
+.signal-tui *::before,
+.signal-tui *::after {
+  box-sizing: border-box;
+}
+
+.signal-tui__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  background: var(--signal-surface);
+  color: var(--signal-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.signal-tui__brand {
+  color: var(--signal-accent);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.signal-tui__divider {
+  margin: 0 0.45rem;
+  color: var(--signal-text-dim);
+  opacity: 0.85;
+}
+
+.signal-tui__file {
+  color: var(--signal-text);
+  font-weight: 600;
+}
+
+.signal-tui__lens {
+  color: var(--signal-text-dim);
+}
+
+.signal-tui__sev {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin-right: 0.55rem;
+}
+
+.signal-tui__sev-dot {
+  font-size: 0.7em;
+  line-height: 1;
+}
+
+.signal-tui__sev--crit {
+  color: var(--signal-sev-crit);
+}
+.signal-tui__sev--high {
+  color: var(--signal-sev-high);
+}
+.signal-tui__sev--med {
+  color: var(--signal-sev-med);
+}
+
+.signal-tui__frame {
+  position: relative;
+  flex: 1 1 auto;
+  /* Gap above the dashed border so the inlaid title clears the header bar
+   * the way ratatui panel titles sit on the top border with room above. */
+  margin: 1.05rem 0.55rem 0.45rem;
+  padding: 0.7rem 0.45rem 0.45rem;
+  border: 1px dashed var(--signal-accent);
+  background: var(--signal-bg);
+  min-height: 0;
+  overflow: visible;
+}
+
+.signal-tui__frame--findings {
+  overflow: hidden;
+  min-height: 22rem;
+}
+
+.signal-tui__frame-label {
+  position: absolute;
+  top: -0.55em;
+  left: 0.65rem;
+  z-index: 1;
+  padding: 0 0.4rem;
+  background: var(--signal-bg);
+  color: var(--signal-accent);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.signal-tui__log {
+  margin: 0;
+  padding: 0.15rem 0 0;
+  overflow: auto;
+  font: inherit;
+  color: var(--signal-text);
+}
+
+.signal-tui__row {
+  display: grid;
+  grid-template-columns: 2.1ch 1.2ch max-content max-content 1fr;
+  column-gap: 0.55rem;
+  align-items: baseline;
+  padding: 0.05rem 0.35rem 0.05rem 0.35rem;
+  border-left: 3px solid transparent;
+}
+
+.signal-tui__row--selected {
+  background: var(--signal-cursor);
+  border-left-color: var(--signal-accent);
+  box-shadow: inset 3px 0 0 var(--signal-accent);
+}
+
+.signal-tui__ln {
+  color: var(--signal-gutter);
+  text-align: right;
+  user-select: none;
+}
+
+.signal-tui__dot {
+  text-align: center;
+  font-size: 0.65em;
+  line-height: 1;
+}
+
+.signal-tui__dot--high {
+  color: var(--signal-sev-high);
+}
+.signal-tui__dot--med {
+  color: var(--signal-sev-med);
+}
+.signal-tui__dot--crit {
+  color: var(--signal-sev-crit);
+}
+
+.signal-tui__ts {
+  color: var(--signal-text);
+}
+
+.signal-tui__level {
+  font-weight: 600;
+  min-width: 5ch;
+}
+
+.signal-tui__level--info {
+  color: var(--signal-level-info);
+}
+.signal-tui__level--warn {
+  color: var(--signal-level-warn);
+}
+.signal-tui__level--error,
+.signal-tui__level--alert {
+  color: var(--signal-level-error);
+}
+
+.signal-tui__msg {
+  color: var(--signal-text);
+  min-width: 0;
+  overflow: visible;
+  white-space: pre;
+}
+
+.signal-tui__match {
+  background: var(--signal-secondary);
+  color: var(--signal-text);
+}
+
+.signal-tui__match--current {
+  background: var(--signal-accent);
+  color: var(--signal-match-fg);
+  font-weight: 700;
+}
+
+.signal-tui__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 1.85rem;
+  padding: 0.3rem 0.55rem;
+  background: var(--signal-surface);
+  color: var(--signal-text-dim);
+}
+
+.signal-tui__mode {
+  display: inline-block;
+  padding: 0.08rem 0.45rem;
+  background: var(--signal-accent);
+  color: var(--signal-match-fg);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 2px;
+}
+
+.signal-tui__status-mid {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--signal-text-dim);
+}
+
+.signal-tui__status-search {
+  color: var(--signal-accent);
+}
+
+.signal-tui__help {
+  color: var(--signal-accent);
+}
+
+.signal-tui__pos {
+  margin-left: auto;
+  color: var(--signal-text-dim);
+  white-space: nowrap;
+}
+
+.signal-tui__findings-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--signal-bg) 72%, #000);
+  z-index: 1;
+}
+
+.signal-tui__findings {
+  position: absolute;
+  inset: 0.7rem 0.85rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem 0.65rem;
+  border: 1px solid var(--signal-accent);
+  background: var(--signal-bg);
+  overflow: auto;
+  z-index: 2;
+}
+
+.signal-tui__findings-title {
+  color: var(--signal-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.signal-tui__sev-bar {
+  display: flex;
+  height: 0.55rem;
+  overflow: hidden;
+  background: var(--signal-border);
+}
+
+.signal-tui__sev-bar-seg {
+  display: block;
+  height: 100%;
+}
+
+.signal-tui__sev-bar-seg--high {
+  background: var(--signal-sev-high);
+}
+
+.signal-tui__sev-bar-seg--med {
+  background: var(--signal-sev-med);
+}
+
+.signal-tui__sev-bar-seg--crit {
+  background: var(--signal-sev-crit);
+}
+
+.signal-tui__filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  color: var(--signal-text-dim);
+}
+
+.signal-tui__filter-chip {
+  padding: 0.05rem 0.4rem;
+  border-radius: 2px;
+  font-weight: 700;
+}
+
+.signal-tui__filter-chip--active {
+  background: var(--signal-text);
+  color: var(--signal-match-fg);
+}
+
+.signal-tui__finding-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.signal-tui__finding {
+  display: flex;
+  gap: 0.55rem;
+  align-items: baseline;
+  padding: 0.2rem 0.35rem;
+  border-left: 3px solid transparent;
+}
+
+.signal-tui__finding--selected {
+  background: var(--signal-cursor);
+  border-left-color: var(--signal-accent);
+  box-shadow: inset 3px 0 0 var(--signal-accent);
+}
+
+.signal-tui__badge {
+  flex: 0 0 auto;
+  padding: 0.05rem 0.4rem;
+  border-radius: 2px;
+  font-weight: 700;
+  color: var(--signal-match-fg);
+}
+
+.signal-tui__badge--high {
+  background: var(--signal-sev-high);
+}
+.signal-tui__badge--med {
+  background: var(--signal-sev-med);
+}
+.signal-tui__badge--crit {
+  background: var(--signal-sev-crit);
+}
+
+.signal-tui__finding-title {
+  color: var(--signal-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signal-tui__finding-loc {
+  color: var(--signal-text-dim);
+  font-weight: 400;
+}
+
+.signal-tui__detail {
+  margin-top: 0.25rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--signal-border);
+  color: var(--signal-text-dim);
+}
+
+.signal-tui__detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: baseline;
+  margin-bottom: 0.35rem;
+}
+
+.signal-tui__detail-cat {
+  color: var(--signal-accent);
+  font-weight: 700;
+}
+
+.signal-tui__detail-name {
+  color: var(--signal-text);
+  font-weight: 700;
+}
+
+.signal-tui__detail-meta {
+  color: var(--signal-accent);
+  font-weight: 700;
+}
+
+.signal-tui__detail-meta-row {
+  margin-bottom: 0.25rem;
+  color: var(--signal-text-dim);
+}
+
+.signal-tui__detail-body {
+  margin-top: 0.2rem;
+  color: var(--signal-text-dim);
+  white-space: pre-wrap;
+}
+
+.signal-tui__scene {
+  opacity: 1;
+  transition: opacity var(--signal-fade-ms) ease;
+}
+
+.signal-tui__scene--hidden {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signal-tui {
+    --signal-fade-ms: 0ms;
+  }
+
+  .signal-tui__scene {
+    transition: none;
+  }
+}
