@@ -1,8 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { __sampleLogDemoTest } from '@/components/custom/marketing/sample-log-demo';
+import { getDefaultMarketingPageContent } from '@/lib/marketing-page-content';
 
 const sampleLog = readFileSync('traceglass/samples/sample.log', 'utf8');
+const sampleLogDemoSource = readFileSync(
+  'src/components/custom/marketing/sample-log-demo.tsx',
+  'utf8',
+);
 
 describe('SampleLogDemo data', () => {
   it('keeps every sample.log line literal, including angle brackets and backslashes', () => {
@@ -51,5 +56,18 @@ describe('SampleLogDemo data', () => {
       expect(f.rationale.length).toBeGreaterThan(20);
       expect(f.description.length).toBeGreaterThan(20);
     }
+  });
+
+  it('hints press s to review findings (s opens the panel; f/F only cycle severity)', () => {
+    expect(sampleLogDemoSource).toContain('7 findings · press s to review');
+    expect(sampleLogDemoSource).not.toContain('press F to review');
+
+    const home = getDefaultMarketingPageContent('home');
+    const hero = home.sections.find((section) => section.id === 'hero');
+    const terminal = hero?.data.terminal as { lines?: string[] } | undefined;
+    expect(terminal?.lines).toEqual([
+      'Signal TUI · sample.log · general-triage',
+      '7 findings · press s to review',
+    ]);
   });
 });

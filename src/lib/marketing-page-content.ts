@@ -50,7 +50,7 @@ const homeSections: SnapshotSection[] = [
       terminal: {
         title: 'sample.log',
         prompt: '$ traceglass sample.log',
-        lines: ['Signal TUI · sample.log · general-triage', '7 findings · press F to review'],
+        lines: ['Signal TUI · sample.log · general-triage', '7 findings · press s to review'],
       },
     },
     [asset('hero-terminal', 'terminal', 'Highlighted log output')],

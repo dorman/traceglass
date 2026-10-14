@@ -1271,7 +1271,7 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
         if app.status.is_none() {
             if !app.findings.is_empty() {
                 spans.push(Span::styled(
-                    format!("{} findings · press F to review  ", app.findings.len()),
+                    format!("{} findings · press s to review  ", app.findings.len()),
                     base,
                 ));
             } else if app.rules.is_empty() {
@@ -3335,6 +3335,16 @@ mod tests {
             assert!(
                 text.contains("INFO") || text.contains("ERROR") || text.contains("WARN"),
                 "depth {depth:?} expected log levels in main view: {text}"
+            );
+            // Status hint must name the real findings-panel key (`s`), not the
+            // in-panel severity filter (`f`/`F`) or the rescan key (`S`).
+            assert!(
+                text.contains("press s to review"),
+                "depth {depth:?} missing findings review hint: {text}"
+            );
+            assert!(
+                !text.contains("press F to review"),
+                "depth {depth:?} must not advertise F for findings review: {text}"
             );
             // Glyph fallback must kick in on Ansi16/Mono (brand mark / severity).
             if !depth.unicode_glyphs() {
