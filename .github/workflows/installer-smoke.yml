@@ -1,0 +1,140 @@
+# @polsia:user-owned — post-release verification of published TraceGlass installers.
+# Run manually after cutting an rc or stable tag. Downloads release assets, verifies
+# Ed25519 signatures with the embedded public key, runs the native installer on each
+# GitHub-hosted target, and checks --version/--help.
+name: Installer smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release tag to verify (for example v0.1.0-rc.1)"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  smoke:
+    name: Smoke ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            installer: traceglass-installer-x86_64-unknown-linux-gnu
+            binary: traceglass
+          # Intel Mac on GitHub-hosted runners (macos-13). If GitHub retires this
+          # image, replace with another Intel-capable hosted label or document
+          # that Intel install smoke must run on a self-hosted Intel Mac.
+          - os: macos-13
+            target: x86_64-apple-darwin
+            installer: traceglass-installer-x86_64-apple-darwin
+            binary: traceglass
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            installer: traceglass-installer-aarch64-apple-darwin
+            binary: traceglass
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            installer: traceglass-installer-x86_64-pc-windows-msvc.exe
+            binary: traceglass.exe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Download published assets
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+          INSTALLER: ${{ matrix.installer }}
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          base="https://github.com/${repo}/releases/download/${TAG}"
+          mkdir -p smoke-assets
+          for name in \
+            "$INSTALLER" \
+            "${INSTALLER}.sig" \
+            SHA256SUMS \
+            SHA256SUMS.sig \
+            traceglass-release.json \
+            traceglass-release.json.sig
+          do
+            curl -fsSL -o "smoke-assets/${name}" "${base}/${name}"
+          done
+          if [[ "${{ runner.os }}" != "Windows" ]]; then
+            chmod +x "smoke-assets/${INSTALLER}"
+          fi
+
+      - name: Verify release signatures with embedded public key
+        shell: bash
+        env:
+          INSTALLER: ${{ matrix.installer }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, pathlib, re, sys
+          try:
+              from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+          except ImportError:
+              import subprocess
+              subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "cryptography"])
+              from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+          lib = pathlib.Path("traceglass/installer/src/lib.rs").read_text()
+          key_b64 = re.search(r'SIGNING_PUBLIC_KEY_B64: &str = "([^"]+)"', lib).group(1)
+          key_id = re.search(r'SIGNING_KEY_ID: &str = "([^"]+)"', lib).group(1)
+          pub = Ed25519PublicKey.from_public_bytes(base64.b64decode(key_b64))
+          assets = pathlib.Path("smoke-assets")
+
+          def verify(name: str) -> None:
+              message = (assets / name).read_bytes()
+              signature = (assets / f"{name}.sig").read_bytes()
+              pub.verify(signature, message)
+              print(f"verified Ed25519 signature for {name}")
+
+          verify("SHA256SUMS")
+          verify("traceglass-release.json")
+          verify(pathlib.Path(__import__("os").environ["INSTALLER"]).name)
+
+          sums = (assets / "SHA256SUMS").read_text().splitlines()
+          installer = __import__("os").environ["INSTALLER"]
+          expected = next(line.split()[0] for line in sums if line.endswith(f" {installer}") or line.endswith(f" *{installer}"))
+          actual = hashlib.sha256((assets / installer).read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit(f"SHA-256 mismatch for {installer}: expected {expected}, got {actual}")
+          print(f"SHA-256 for {installer} matches SHA256SUMS ({key_id}).")
+          PY
+
+      - name: Install with signed TraceGlass installer
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+          INSTALLER: ${{ matrix.installer }}
+          BINARY: ${{ matrix.binary }}
+        run: |
+          set -euo pipefail
+          install_dir="${RUNNER_TEMP}/traceglass-smoke-install"
+          mkdir -p "$install_dir"
+          "./smoke-assets/${INSTALLER}" \
+            --tag "$TAG" \
+            --yes \
+            --no-path \
+            --no-launch \
+            --install-dir "$install_dir"
+          test -f "$install_dir/$BINARY"
+          "$install_dir/$BINARY" --version
+          "$install_dir/$BINARY" --help | grep -Eiq 'traceglass|usage|format'
+
+      - name: Note OS signing status
+        shell: bash
+        run: |
+          echo "Ed25519 manifest/payload/installer signatures were verified."
+          echo "Windows Authenticode and macOS Developer ID/notarization are NOT configured;"
+          echo "binaries remain unsigned at the OS level for this dry-run pipeline."

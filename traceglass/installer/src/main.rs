@@ -1,15 +1,18 @@
 // @polsia:user-owned — local platform installer frontend.
 use clap::Parser;
-use traceglass_installer::{
-    MANIFEST_SIGNATURE_URL, MANIFEST_URL, SIGNATURE_SCHEME, expected_target, extract_payload,
-    find_target, public_key, read_file, validate_manifest, verify_hash, verify_signature,
-};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use traceglass_installer::{
+    SIGNATURE_SCHEME, expected_target, extract_payload, find_target, is_valid_release_tag,
+    manifest_urls_for_tag, public_key, read_file, validate_manifest, verify_hash, verify_signature,
+};
 
 #[derive(Debug, Parser)]
-#[command(name = "traceglass-installer", about = "Verify and install the local TraceGlass beta")]
+#[command(
+    name = "traceglass-installer",
+    about = "Verify and install the local TraceGlass beta"
+)]
 struct Args {
     /// Accept the current-user install, PATH, shortcut, and launch prompts.
     #[arg(long)]
@@ -23,6 +26,10 @@ struct Args {
     /// Install into this user-selected directory instead of the platform default.
     #[arg(long, value_name = "DIR")]
     install_dir: Option<PathBuf>,
+    /// Install a specific release tag instead of GitHub's latest non-prerelease.
+    /// Required for prerelease dry-runs such as `v0.1.0-rc.1`.
+    #[arg(long, value_name = "TAG")]
+    tag: Option<String>,
 }
 
 fn main() {
@@ -37,15 +44,29 @@ fn run(args: Args) -> anyhow::Result<()> {
     if target == "unsupported" {
         anyhow::bail!("this installer build does not support the current OS/architecture");
     }
+    if let Some(tag) = args.tag.as_deref() {
+        if !is_valid_release_tag(tag) {
+            anyhow::bail!("invalid release tag {tag}; expected v0.1.0 or v0.1.0-rc.1");
+        }
+    }
+    let (manifest_url, manifest_signature_url) = manifest_urls_for_tag(args.tag.as_deref());
     let client = reqwest::blocking::Client::builder()
         .user_agent("traceglass-installer/0.1")
         .build()?;
     println!("Checking the signed TraceGlass release manifest for {target}…");
-    let manifest_bytes = download(&client, MANIFEST_URL)?;
-    let manifest_signature = download(&client, MANIFEST_SIGNATURE_URL)?;
+    let manifest_bytes = download(&client, &manifest_url)?;
+    let manifest_signature = download(&client, &manifest_signature_url)?;
     let key = public_key()?;
     verify_signature(&manifest_bytes, &manifest_signature, &key)?;
     let manifest = validate_manifest(&manifest_bytes)?;
+    if let Some(tag) = args.tag.as_deref() {
+        if manifest.version != tag {
+            anyhow::bail!(
+                "manifest version {} does not match requested tag {tag}",
+                manifest.version
+            );
+        }
+    }
     let release = find_target(&manifest, target)?;
 
     let payload_bytes = download(&client, &release.payload.artifact.url)?;
@@ -71,7 +92,9 @@ fn run(args: Args) -> anyhow::Result<()> {
             install_dir.display()
         ))?
     {
-        println!("Installation cancelled; no executable, PATH entry, shortcut, or terminal was changed.");
+        println!(
+            "Installation cancelled; no executable, PATH entry, shortcut, or terminal was changed."
+        );
         return Ok(());
     }
     std::fs::create_dir_all(&install_dir)?;
@@ -111,7 +134,12 @@ fn run(args: Args) -> anyhow::Result<()> {
 }
 
 fn download(client: &reqwest::blocking::Client, url: &str) -> anyhow::Result<Vec<u8>> {
-    Ok(client.get(url).send()?.error_for_status()?.bytes()?.to_vec())
+    Ok(client
+        .get(url)
+        .send()?
+        .error_for_status()?
+        .bytes()?
+        .to_vec())
 }
 
 fn consent(prompt: &str) -> anyhow::Result<bool> {
@@ -157,9 +185,8 @@ fn set_executable(path: &Path) -> anyhow::Result<()> {
 
 #[cfg(not(windows))]
 fn add_to_user_path(directory: &Path) -> anyhow::Result<()> {
-    let home = PathBuf::from(
-        std::env::var_os("HOME").ok_or_else(|| anyhow::anyhow!("HOME is not set"))?,
-    );
+    let home =
+        PathBuf::from(std::env::var_os("HOME").ok_or_else(|| anyhow::anyhow!("HOME is not set"))?);
     let profile = if cfg!(target_os = "macos") {
         home.join(".zprofile")
     } else {
@@ -181,8 +208,8 @@ fn add_to_user_path(directory: &Path) -> anyhow::Result<()> {
 
 #[cfg(windows)]
 fn add_to_user_path(directory: &Path) -> anyhow::Result<()> {
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
     use winreg::RegKey;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
     let key = RegKey::predef(HKEY_CURRENT_USER)
         .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)?;
     let current: String = key.get_value("Path").unwrap_or_default();
@@ -203,7 +230,9 @@ fn add_to_user_path(directory: &Path) -> anyhow::Result<()> {
 }
 
 fn create_shortcut(_destination: &Path) -> anyhow::Result<()> {
-    anyhow::bail!("shortcut creation is not enabled in this beta; the executable path above is ready")
+    anyhow::bail!(
+        "shortcut creation is not enabled in this beta; the executable path above is ready"
+    )
 }
 
 #[cfg(target_os = "macos")]

@@ -52,9 +52,10 @@ a new terminal. With launch consent, the new terminal starts the no-argument
 interactive welcome/browser TUI. File, stdin, pipe, raw, JSON, and CSV modes
 remain available. There is no log upload, telemetry, service, or silent update.
 
-Ed25519 release signatures do not mean Windows Authenticode, macOS Developer
-ID, or notarization is present; those are separately documented only when the
-publisher credentials exist.
+Ed25519 release signatures (and `SHA256SUMS`) verify the TraceGlass publisher
+and payload only. Release binaries are not Windows Authenticode-signed or macOS
+Developer ID / notarized yet; those are separately documented only when the
+publisher credentials exist. See `/RELEASING.md` for rc tags and smoke tests.
 
 The exact target pairs are Linux glibc x86_64 with
 `traceglass-installer-x86_64-unknown-linux-gnu` and a `.tar.gz` payload, macOS

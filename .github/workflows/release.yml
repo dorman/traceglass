@@ -7,13 +7,15 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to release (for example v0.1.0)"
+        description: "Tag to release (for example v0.1.0-rc.1 or v0.1.0)"
         required: true
         type: string
 
 permissions: {}
 env:
   CARGO_TERM_COLOR: always
+  # Must match SIGNING_KEY_ID in traceglass/installer/src/lib.rs
+  TRACEGLASS_SIGNING_KEY_ID: traceglass-ed25519-26deb421
 
 jobs:
   validate:
@@ -24,6 +26,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Require signing secret early
+        env:
+          TRACEGLASS_RELEASE_SIGNING_KEY_PEM: ${{ secrets.TRACEGLASS_RELEASE_SIGNING_KEY_PEM }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TRACEGLASS_RELEASE_SIGNING_KEY_PEM:-}" ]]; then
+            echo "::error::Missing GitHub Actions secret TRACEGLASS_RELEASE_SIGNING_KEY_PEM."
+            echo "Add the Ed25519 PKCS#8 private key PEM as a repository secret before cutting a release tag."
+            echo "See RELEASING.md. Never commit the private key."
+            exit 1
+          fi
+          if ! grep -q "BEGIN.*PRIVATE KEY" <<<"$TRACEGLASS_RELEASE_SIGNING_KEY_PEM"; then
+            echo "::error::TRACEGLASS_RELEASE_SIGNING_KEY_PEM does not look like a PEM private key."
+            exit 1
+          fi
+          echo "Signing secret is present (value not printed)."
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -34,13 +52,19 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          version="$(cargo pkgid | sed -E 's/.*#.*@([0-9.]+)$/\1/')"
-          test "$RELEASE_TAG" = "v$version"
+          version="$(cargo pkgid | sed -E 's/.*@([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+          if [[ ! "$RELEASE_TAG" =~ ^v${version}(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag $RELEASE_TAG does not match Cargo.toml version $version (allowed: v$version or v$version-<prerelease>)."
+            exit 1
+          fi
           cargo fmt --all -- --check
+          cargo fmt --manifest-path installer/Cargo.toml --all -- --check
           cargo clippy --all-targets --locked -- -D warnings
           cargo test --locked
+          cargo test --manifest-path installer/Cargo.toml --locked
+          cargo clippy --manifest-path installer/Cargo.toml --all-targets --locked -- -D warnings
           cargo package --locked
-          cargo build --manifest-path installer/Cargo.toml --release
+          cargo build --manifest-path installer/Cargo.toml --release --locked
 
   build:
     name: Build ${{ matrix.target }}
@@ -58,7 +82,8 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             archive: tar.gz
-          - os: macos-latest
+          # Intel Mac: native runner so release smoke exercises the x86_64 binary.
+          - os: macos-13
             target: x86_64-apple-darwin
             archive: tar.gz
           - os: windows-latest
@@ -81,7 +106,7 @@ jobs:
         working-directory: traceglass
         run: |
           cargo build --release --locked --target ${{ matrix.target }}
-          cargo build --manifest-path installer/Cargo.toml --release --target ${{ matrix.target }}
+          cargo build --manifest-path installer/Cargo.toml --release --locked --target ${{ matrix.target }}
       - name: Package and smoke-test
         working-directory: traceglass
         shell: bash
@@ -114,6 +139,15 @@ jobs:
           "$stage/traceglass$extension" --format json samples/sample.log > smoke.json
           grep -q '"file"' smoke.json
           "./$installer" --help | grep -q 'Verify and install'
+      # PLACEHOLDER (disabled): OS-level code signing. Ed25519 release signatures are
+      # publisher verification only. Do not enable until Authenticode / Developer ID
+      # + notarization credentials exist and are documented as live.
+      # - name: "(disabled) Windows Authenticode sign"
+      #   if: false && runner.os == 'Windows'
+      #   run: echo "Authenticode not configured"
+      # - name: "(disabled) macOS Developer ID sign + notarize"
+      #   if: false && runner.os == 'macOS'
+      #   run: echo "Developer ID / notarization not configured"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: traceglass-${{ matrix.target }}
@@ -144,13 +178,17 @@ jobs:
           find dist -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name 'traceglass-installer-*' \) -exec cp {} assets/ \;
           test "$(find assets -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) | wc -l)" -eq 4
           test "$(find assets -maxdepth 1 -type f -name 'traceglass-installer-*' | wc -l)" -eq 4
-          test -n "$TRACEGLASS_RELEASE_SIGNING_KEY_PEM"
+          if [[ -z "${TRACEGLASS_RELEASE_SIGNING_KEY_PEM:-}" ]]; then
+            echo "::error::Missing TRACEGLASS_RELEASE_SIGNING_KEY_PEM (should have failed in validate)."
+            exit 1
+          fi
       - name: Generate signed manifest, hashes, and signatures
         shell: bash
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           TRACEGLASS_RELEASE_SIGNING_KEY_PEM: ${{ secrets.TRACEGLASS_RELEASE_SIGNING_KEY_PEM }}
+          TRACEGLASS_SIGNING_KEY_ID: ${{ env.TRACEGLASS_SIGNING_KEY_ID }}
         run: |
           set -euo pipefail
           umask 077
@@ -161,6 +199,7 @@ jobs:
           assets = Path("assets")
           tag = os.environ["RELEASE_TAG"]
           repository = os.environ["GITHUB_REPOSITORY"]
+          key_id = os.environ["TRACEGLASS_SIGNING_KEY_ID"]
           base = "https://github.com/{}/releases/download/{}".format(repository, tag)
           archives = sorted(list(assets.glob("traceglass-*.tar.gz")) + list(assets.glob("traceglass-*.zip")))
           targets = []
@@ -186,7 +225,7 @@ jobs:
               def artifact(path):
                   return {"filename": path.name, "url": "{}/{}".format(base, path.name),
                           "sha256": digest(path), "signatureUrl": "{}/{}.sig".format(base, path.name),
-                          "signatureScheme": "Ed25519", "signingKeyId": "traceglass-release-ed25519-2026"}
+                          "signatureScheme": "Ed25519", "signingKeyId": key_id}
               targets.append({"target": target, "installer": artifact(installer),
                               "payload": dict(artifact(archive), archiveFormat=archive_format,
                                               executableSha256=hashlib.sha256(executable).hexdigest())})
@@ -194,21 +233,39 @@ jobs:
                       "version": tag, "targets": targets}
           (assets / "traceglass-release.json").write_text(json.dumps(manifest, indent=2) + "\n")
           PY
-          for artifact in assets/traceglass-*.tar.gz assets/traceglass-*.zip assets/traceglass-installer-*; do
-            openssl pkeyutl -sign -inkey signing-key.pem -in "$artifact" -out "$artifact.sig"
+          # OpenSSL 3 Ed25519 requires -rawin (pure Ed25519 over the message bytes).
+          # Glob carefully so generated *.sig files are never re-signed or hashed.
+          shopt -s nullglob
+          to_sign=(assets/traceglass-*.tar.gz assets/traceglass-*.zip)
+          for path in assets/traceglass-installer-*; do
+            [[ "$path" == *.sig ]] && continue
+            to_sign+=("$path")
           done
-          openssl pkeyutl -sign -inkey signing-key.pem -in assets/traceglass-release.json -out assets/traceglass-release.json.sig
-          (cd assets && sha256sum -- *.tar.gz *.zip traceglass-installer-* traceglass-release.json > SHA256SUMS)
-          openssl pkeyutl -sign -inkey signing-key.pem -in assets/SHA256SUMS -out assets/SHA256SUMS.sig
+          for artifact in "${to_sign[@]}"; do
+            openssl pkeyutl -sign -inkey signing-key.pem -rawin -in "$artifact" -out "$artifact.sig"
+          done
+          openssl pkeyutl -sign -inkey signing-key.pem -rawin -in assets/traceglass-release.json -out assets/traceglass-release.json.sig
+          (
+            cd assets
+            hash_inputs=(*.tar.gz *.zip traceglass-release.json)
+            for path in traceglass-installer-*; do
+              [[ "$path" == *.sig ]] && continue
+              hash_inputs+=("$path")
+            done
+            sha256sum -- "${hash_inputs[@]}" > SHA256SUMS
+          )
+          openssl pkeyutl -sign -inkey signing-key.pem -rawin -in assets/SHA256SUMS -out assets/SHA256SUMS.sig
           rm -f signing-key.pem
           test -s assets/traceglass-release.json.sig
           test -s assets/SHA256SUMS.sig
+          test "$(grep -c ' traceglass-installer-' assets/SHA256SUMS || true)" -eq 4
       - name: Publish only after verification gates
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: TraceGlass ${{ inputs.tag || github.ref_name }}
           generate_release_notes: true
+          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
           files: assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -93,11 +93,15 @@ The shell and PowerShell files are local wrappers only. They refuse a piped
 invocation and never download or execute remote text. There is no checksum
 bypass, `sudo` default, telemetry, service, or auto-update path.
 
-The release workflow runs package, fmt, clippy, Rust tests, installer build,
+The release workflow runs package, fmt, clippy, Rust tests, installer tests
+(including throwaway-key signature verify / wrong-key reject), installer build,
 PTY/machine-mode smoke checks, archive-content checks, and signed-manifest
-generation before creating a GitHub Release. It fails closed when the external
-`TRACEGLASS_RELEASE_SIGNING_KEY_PEM` secret is absent. No crates.io publication is
-performed by the workflow.
+generation before creating a GitHub Release. It fails closed early when the
+external `TRACEGLASS_RELEASE_SIGNING_KEY_PEM` secret is absent. Prerelease tags
+such as `v0.1.0-rc.1` are supported and marked as GitHub prereleases. After
+publish, run the `Installer smoke` workflow_dispatch job to exercise all four
+targets. See `/RELEASING.md`. No crates.io publication is performed by the
+workflow.
 
 ## Signature regression matrix
 
