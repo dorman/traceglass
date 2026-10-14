@@ -6,6 +6,11 @@ Keyword and regex highlights are user-controlled entries in a local watchlist;
 curated built-in signatures are a separate versioned scan catalog. No AI,
 network access, or log upload is needed.
 
+For L2 / IT reviewers: **[TRUST.md](../TRUST.md)** — plain-language “never
+phones home” statement, how to verify offline, and checksum / Ed25519 checks.
+Also [`docs/THREAT_MODEL.md`](../docs/THREAT_MODEL.md) and
+[`docs/RELEASE_CHECKLIST.md`](../docs/RELEASE_CHECKLIST.md).
+
 traceglass is designed for handed-over files and bundles: Docker and container
 logs, Kubernetes/k8s output, systemd/journal logs, nginx logs, MySQL and
 PostgreSQL logs, Windows Event Logs, antivirus/EDR collections, Splunk exports,

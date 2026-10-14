@@ -8,6 +8,10 @@ are user-controlled entries in a local watchlist; curated built-in signatures
 are separate versioned scan metadata. The watchlist needs no AI or network
 access, and no candidate suggestions are currently generated.
 
+**Trust / security reviewers:** see [`TRUST.md`](./TRUST.md) (no phone-home
+scanner statement), [`docs/THREAT_MODEL.md`](./docs/THREAT_MODEL.md), and
+[`docs/RELEASE_CHECKLIST.md`](./docs/RELEASE_CHECKLIST.md).
+
 ## CLI install
 
 The primary beta path is the TraceGlass one-click installer. It is planned for
@@ -145,7 +149,11 @@ SKIP_ENV_VALIDATION=1 npm run build
 The CLI fixture and mode matrix is documented in
 [`traceglass/tests/README.md`](./traceglass/tests/README.md). The CLI's complete
 usage guide and resource limits are in
-[`traceglass/docs/USER_GUIDE.md`](./traceglass/docs/USER_GUIDE.md).
+[`traceglass/docs/USER_GUIDE.md`](./traceglass/docs/USER_GUIDE.md). Privacy and
+release readiness docs: [`TRUST.md`](./TRUST.md),
+[`docs/THREAT_MODEL.md`](./docs/THREAT_MODEL.md),
+[`docs/RELEASE_CHECKLIST.md`](./docs/RELEASE_CHECKLIST.md). Signed-release
+operator steps: [`RELEASING.md`](./RELEASING.md).
 
 ## License
 

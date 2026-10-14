@@ -6,6 +6,10 @@ the TraceGlass release layer** (`traceglass-release.json`, per-artifact `.sig`
 files, and `SHA256SUMS`). They are **not** Windows Authenticode-signed or macOS
 Developer ID / notarized yet.
 
+Also see [`TRUST.md`](TRUST.md) (privacy / no phone-home),
+[`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), and
+[`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) (rc → stable gates).
+
 ## One-time: add the signing secret
 
 1. Generate an Ed25519 key pair offline (owner only). Keep the private key out of
