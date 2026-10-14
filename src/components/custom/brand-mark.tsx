@@ -46,7 +46,9 @@ export function BrandMark({
       priority={priority}
       sizes={sizes}
       className={cn(
-        variant === 'mark' ? 'h-8 w-auto object-contain sm:h-9' : 'h-auto w-[8.5rem] object-contain',
+        variant === 'mark'
+          ? 'h-8 w-auto object-contain sm:h-9'
+          : 'h-auto w-[8.5rem] object-contain',
         className,
       )}
     />
@@ -59,7 +61,10 @@ export function BrandMark({
   return (
     <span className="inline-flex items-center gap-2">
       {image}
-      <span aria-hidden="true" className="select-none text-base font-semibold tracking-tight sm:text-lg">
+      <span
+        aria-hidden="true"
+        className="select-none text-base font-semibold tracking-tight sm:text-lg"
+      >
         <span className="text-zinc-50">Trace</span>
         <span className="text-brand-400">Glass</span>
       </span>
