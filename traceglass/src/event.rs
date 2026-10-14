@@ -248,7 +248,7 @@ fn handle_mouse(app: &mut App, m: MouseEvent) {
             }
             // Click a highlight in the legend -> jump through its matches.
             let legend_inner = inner(r.legend);
-            if app.show_legend && hit(legend_inner, col, row) {
+            if app.show_legend && !app.rules.is_empty() && hit(legend_inner, col, row) {
                 let idx = (row - legend_inner.y) as usize;
                 app.click_rule(idx);
                 return;
@@ -713,8 +713,11 @@ mod tests {
             "Enter should jump toward the first match from the bottom"
         );
         assert!(
-            app.status.as_deref().unwrap_or("").starts_with("match 1/"),
-            "Enter should report match 1/n: {:?}",
+            app.status
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("occurrence 1 of "),
+            "Enter should report occurrence 1 of n: {:?}",
             app.status
         );
     }

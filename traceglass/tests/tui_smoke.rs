@@ -276,12 +276,14 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
     writer.write_all(b"ERROR\r")?;
     writer.flush()?;
     assert!(
+        // Status paints with cursor hops against the previous message, so the
+        // full sentence may not be contiguous in the PTY transcript.
         wait_for_needle(
             &mut transcript,
             &output_rx,
             &mut writer,
             &mut answered_dsr,
-            "added keyword highlight to local watchlist: ERROR"
+            "local watchlist: ERROR"
         ),
         "viewer add status did not name the local watchlist: {transcript}"
     );
@@ -293,7 +295,7 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
             &output_rx,
             &mut writer,
             &mut answered_dsr,
-            "Failed to connect"
+            "Failed to conn"
         ),
         "keyword match was not visible after filtering: {transcript}"
     );
@@ -348,19 +350,24 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
             &output_rx,
             &mut writer,
             &mut answered_dsr,
-            "removed keyword highlight from local watchlist"
+            "from local watchlist"
         ),
         "remove feedback was not rendered: {transcript}"
     );
     writer.write_all(b"aERROR\r")?;
     writer.flush()?;
+    // Prefer "to local watchlist: ERROR" over the shared stem
+    // "local watchlist: ERROR" (also appears in the prior remove status) and
+    // over the full "added keyword…" sentence (status paints with cursor hops
+    // that can split "added"). Matching too early lets `s` land while busy()
+    // still drops non-cancel keys.
     assert!(
         wait_for_needle(
             &mut transcript,
             &output_rx,
             &mut writer,
             &mut answered_dsr,
-            "added keyword highlight to local watchlist: ERROR"
+            "to local watchlist: ERROR"
         ),
         "re-added entry did not finish: {transcript}"
     );
