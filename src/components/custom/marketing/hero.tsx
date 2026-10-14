@@ -35,9 +35,9 @@ export function Hero() {
           </Link>
 
           <h1 className="text-display font-display text-balance text-foreground">
-            Grammarly,{' '}
+            A privacy-first{' '}
             <span className="bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent dark:from-brand-400 dark:to-brand-200">
-              for logs.
+              log inspector.
             </span>
           </h1>
 

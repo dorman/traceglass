@@ -332,8 +332,8 @@ matched line.
 
 ## Keyword and regex highlights
 
-Keyword and regex highlights are your own tracked terms — like Grammarly
-underlines, but for the strings you care about. Pressing `a` or `r` adds the
+Keyword and regex highlights are your own tracked terms — inline underlines
+for the strings you care about. Pressing `a` or `r` adds the
 chosen highlight as a user-controlled entry in the local watchlist; each rule
 gets a distinct color, shown in the legend panel on the right with a live match
 count. These entries are separate from curated built-in signature findings.

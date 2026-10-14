@@ -104,6 +104,7 @@ fn piped_stdin_defaults_to_sanitized_raw_output() {
 fn help_documents_all_machine_modes() {
     let output = binary().arg("--help").output().expect("run help");
     let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+    assert!(help.contains("TraceGlass"));
     assert!(help.contains("--format <FORMAT>"));
     assert!(help.contains("--findings <PATH>"));
     assert!(help.contains("raw"));

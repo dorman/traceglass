@@ -35,7 +35,7 @@ const homeSections: SnapshotSection[] = [
     'hero',
     {
       eyebrow: 'Rust-native · local-first · beta installer',
-      heading: 'Grammarly, for logs.',
+      heading: 'A privacy-first log inspector.',
       body: 'Open a diagnostic file in the TUI, or pipe logs through a machine mode. TraceGlass keeps source lines visible while it ranks signals across Splunk, Docker, Kubernetes, databases, and endpoint collections.',
       links: [
         { label: 'Install TraceGlass', href: '/install' },

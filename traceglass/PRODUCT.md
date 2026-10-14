@@ -61,7 +61,7 @@ Three mechanisms a neighboring tool could not truthfully claim together:
    while search, filter, and jump stay immediate at a quarter-million lines,
    where a GUI or web viewer would stall.
 
-The `Grammarly for logs` tagline names the *posture* — proactive, inline,
+The *privacy-first log inspector* posture is proactive and inline: it
 explains itself — not a feature to defend.
 
 ## Operating Context
@@ -136,7 +136,7 @@ and piped modes.
 ## Brand Commitments
 
 - Name is **traceglass**, lowercase, including at the start of a sentence.
-- Tagline: **"Grammarly for logs."**
+- Tagline: **"A privacy-first log inspector."**
 - Voice: plain English, second person, imperative. Explains what a signal
   *means* rather than restating the pattern that matched. Terse over
   enthusiastic; no exclamation marks in product copy.

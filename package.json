@@ -2,6 +2,7 @@
   "name": "polsia-app-template",
   "version": "0.3.7",
   "private": true,
+  "license": "MIT",
   "description": "Polsia Next.js template with the shadcn UI baseline built in",
   "engines": {
     "node": ">=20.18.1"

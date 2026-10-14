@@ -146,3 +146,7 @@ The CLI fixture and mode matrix is documented in
 [`traceglass/tests/README.md`](./traceglass/tests/README.md). The CLI's complete
 usage guide and resource limits are in
 [`traceglass/docs/USER_GUIDE.md`](./traceglass/docs/USER_GUIDE.md).
+
+## License
+
+MIT License. Copyright (c) 2026 TraceGlass. See [`LICENSE`](./LICENSE).
