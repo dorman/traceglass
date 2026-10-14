@@ -9,13 +9,7 @@ import type { AppCapabilities } from '@/lib/permissions-policy';
 type RemotePatterns = NonNullable<NonNullable<NextConfig['images']>['remotePatterns']>;
 
 /** Remote hosts you load <Image> from. e.g. { protocol: 'https', hostname: 'images.unsplash.com' } */
-export const userRemotePatterns: RemotePatterns = [
-  {
-    protocol: 'https',
-    hostname: 'pub-629428d185ca4960a0a73c850d32294b.r2.dev',
-    pathname: '/company_274843/chat/598467e0-a6a8-427c-911e-8f7fd831b9c0.png',
-  },
-];
+export const userRemotePatterns: RemotePatterns = [];
 
 /** Package-level Next options (transpilePackages, experimental.optimizePackageImports, …). */
 export const userNextConfig: NextConfig = {};
