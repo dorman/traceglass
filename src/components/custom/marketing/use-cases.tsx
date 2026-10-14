@@ -95,19 +95,32 @@ const useCases = [
 ];
 
 function renderTone(tone: string, text: string) {
+  // Signal rule: only the level token is colored; message text stays neutral.
   switch (tone) {
     case 'muted':
-      return <span className="text-zinc-500">{text}</span>;
+      return <span style={{ color: '#737A8C' }}>{text}</span>;
     case 'info':
-      return <span className="bg-yellow-500/20 font-semibold text-yellow-300">{text}</span>;
+      return (
+        <span className="font-semibold" style={{ color: '#7FA7CF' }}>
+          {text}
+        </span>
+      );
     case 'warn':
-      return <span className="bg-orange-500/25 font-semibold text-orange-300">{text}</span>;
+      return (
+        <span className="font-semibold" style={{ color: '#E5C07B' }}>
+          {text}
+        </span>
+      );
     case 'fatal':
-      return <span className="bg-red-500/25 font-bold text-red-300">{text}</span>;
+      return (
+        <span className="font-semibold" style={{ color: '#E06C75' }}>
+          {text}
+        </span>
+      );
     case 'plain-soft':
-      return <span className="text-zinc-400">{text}</span>;
+      return <span style={{ color: '#D7DAE0' }}>{text}</span>;
     default:
-      return <span className="text-zinc-200">{text}</span>;
+      return <span style={{ color: '#D7DAE0' }}>{text}</span>;
   }
 }
 
@@ -156,7 +169,9 @@ export function UseCases() {
                         ))}
                       </span>
                     ) : null}
-                    <span className="block whitespace-pre pt-2 text-zinc-500">{uc.tailNote}</span>
+                    <span className="block whitespace-pre pt-2" style={{ color: '#737A8C' }}>
+                      {uc.tailNote}
+                    </span>
                   </code>
                 </Terminal>
               </div>

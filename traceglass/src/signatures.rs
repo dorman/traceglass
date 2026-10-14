@@ -25,13 +25,29 @@ impl Severity {
         }
     }
 
+    /// Truecolor Signal severity colors (Direction B). Prefer
+    /// [`crate::theme::Theme::severity_color`] at paint time so Ansi16/256
+    /// hand-mapped Named fallbacks are honored.
+    #[allow(dead_code)]
     pub fn color(self) -> Color {
         match self {
-            Severity::Critical => Color::Rgb(0xFF, 0x55, 0x55),
-            Severity::High => Color::Rgb(0xE8, 0x8B, 0x3D),
-            Severity::Medium => Color::Rgb(0xE5, 0xC0, 0x7B),
-            Severity::Low => Color::Rgb(0x61, 0xAF, 0xEF),
-            Severity::Info => Color::Rgb(0x7C, 0x83, 0x94),
+            Severity::Critical => Color::Rgb(0xFF, 0x5F, 0x6D),
+            Severity::High => Color::Rgb(0xFF, 0x9F, 0x43),
+            Severity::Medium => Color::Rgb(0xF7, 0xC9, 0x48),
+            Severity::Low => Color::Rgb(0x5A, 0xA9, 0xFF),
+            Severity::Info => Color::Rgb(0x73, 0x7A, 0x8C),
+        }
+    }
+
+    /// Hand-mapped Ansi16 Named colors for this severity (HoD Signal table).
+    #[allow(dead_code)]
+    pub fn named_color(self) -> Color {
+        match self {
+            Severity::Critical => Color::LightRed,
+            Severity::High => Color::Red,
+            Severity::Medium => Color::Yellow,
+            Severity::Low => Color::Blue,
+            Severity::Info => Color::DarkGray,
         }
     }
 }

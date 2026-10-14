@@ -1,25 +1,32 @@
 ---
 name: TraceGlass
-description: A dark terminal lightbox where log anomalies glow and every finding explains itself.
+description: A dark terminal lightbox where log anomalies glow and every finding explains itself. Direction B "Signal" — teal/violet accent pair with depth-aware fallbacks.
 colors:
-  signal-blue: "#61AFEF"
-  panel-graphite: "#454C5E"
-  paper-white: "#CED3DE"
-  slate-mute: "#7C8394"
+  signal-teal: "#3EE0D8"
+  signal-violet: "#8B7CF6"
+  surface-ink: "#1A1D27"
+  ground-ink: "#0F1117"
+  paper-white: "#D7DAE0"
+  slate-mute: "#737A8C"
   gutter-steel: "#5A6172"
-  row-wash: "#2E3440"
-  status-trench: "#1B1F27"
-  status-quartz: "#ABB2BF"
-  ink-black: "#14161B"
-  search-magnesium: "#F5F5F5"
+  row-wash: "#232731"
+  border-dim: "#2B3040"
+  ink-black: "#0F1117"
+  search-violet: "#8B7CF6"
+  search-current-teal: "#3EE0D8"
   logo-cobalt: "#5B84EF"
   logo-turquoise: "#3EE0D8"
   error-coral: "#E06C75"
   warn-amber: "#E5C07B"
-  crit-alarm-red: "#FF5555"
-  high-ember-orange: "#E88B3D"
+  crit-alarm-red: "#FF5F6D"
+  high-ember-orange: "#FF9F43"
+  med-signal-yellow: "#F7C948"
+  low-signal-blue: "#5AA9FF"
   chrome-danger: "#E06C75"
   chrome-marked: "#98C379"
+  light-ground: "#F6F7FB"
+  light-accent: "#0E8C86"
+  light-secondary: "#5B4BD6"
   hl-coral: "#E06C75"
   hl-moss: "#98C379"
   hl-amber: "#E5C07B"
@@ -54,23 +61,24 @@ typography:
     fontWeight: 700
     lineHeight: "1 cell"
 rounded:
-  panel: "1 cell, arc glyphs (╭ ╮ ╰ ╯)"
+  panel: "1 cell, plain box glyphs (┌ ┐ └ ┘)"
   none: "0"
 spacing:
   tight: "1 cell"
   glyph: "2 cells"
   gap: "3 cells"
   field: "4 cells"
+  modal-pad: "1 cell horizontal"
 components:
   panel:
     textColor: "{colors.slate-mute}"
     rounded: "{rounded.panel}"
-    padding: "0"
+    padding: "{spacing.modal-pad}"
   panel-active:
-    textColor: "{colors.signal-blue}"
+    textColor: "{colors.signal-teal}"
     typography: "{typography.headline}"
     rounded: "{rounded.panel}"
-    padding: "0"
+    padding: "{spacing.modal-pad}"
   log-line:
     textColor: "{colors.paper-white}"
     typography: "{typography.body}"
@@ -89,9 +97,15 @@ components:
     typography: "{typography.label}"
     rounded: "{rounded.none}"
   search-match:
-    backgroundColor: "{colors.search-magnesium}"
+    backgroundColor: "{colors.search-violet}"
     textColor: "{colors.ink-black}"
     typography: "{typography.label}"
+    rounded: "{rounded.none}"
+  search-match-current:
+    backgroundColor: "{colors.search-current-teal}"
+    textColor: "{colors.ink-black}"
+    typography: "{typography.label}"
+    modifier: "REVERSED"
     rounded: "{rounded.none}"
   severity-badge-crit:
     backgroundColor: "{colors.crit-alarm-red}"
@@ -106,13 +120,13 @@ components:
     padding: "1 cell horizontal"
     width: "6 cells (4-cell left-aligned label plus one cell each side)"
   severity-badge-med:
-    backgroundColor: "{colors.warn-amber}"
+    backgroundColor: "{colors.med-signal-yellow}"
     textColor: "{colors.ink-black}"
     typography: "{typography.label}"
     padding: "1 cell horizontal"
     width: "6 cells (4-cell left-aligned label plus one cell each side)"
   tab-active:
-    backgroundColor: "{colors.signal-blue}"
+    backgroundColor: "{colors.signal-teal}"
     textColor: "{colors.ink-black}"
     typography: "{typography.label}"
     padding: "1 cell horizontal"
@@ -121,18 +135,27 @@ components:
     typography: "{typography.body}"
     padding: "1 cell horizontal"
   status-bar:
-    backgroundColor: "{colors.status-trench}"
-    textColor: "{colors.status-quartz}"
+    backgroundColor: "{colors.surface-ink}"
+    textColor: "{colors.slate-mute}"
     typography: "{typography.body}"
     height: "1 cell"
     padding: "1 cell leading"
+  status-bar-mode-pill:
+    backgroundColor: "{colors.signal-teal}"
+    textColor: "{colors.ink-black}"
+    typography: "{typography.label}"
   status-bar-message:
-    backgroundColor: "{colors.status-trench}"
-    textColor: "{colors.signal-blue}"
+    backgroundColor: "{colors.surface-ink}"
+    textColor: "{colors.signal-teal}"
     typography: "{typography.label}"
     height: "1 cell"
+  header-bar:
+    backgroundColor: "{colors.surface-ink}"
+    textColor: "{colors.paper-white}"
+    typography: "{typography.body}"
+    height: "1 cell"
   keycap:
-    textColor: "{colors.signal-blue}"
+    textColor: "{colors.signal-teal}"
     typography: "{typography.label}"
   input-prompt:
     textColor: "{colors.paper-white}"
@@ -146,9 +169,9 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Radiologist's Lightbox"**
+**Creative North Star: "The Radiologist's Lightbox"** (Direction B — Signal)
 
-traceglass is a dark, evenly-lit field that you hold a log up against so its anomalies glow on their own. The ground is deliberately underexposed — a muted one-dark graphite — not because dark terminals are fashionable, but because tint only carries meaning when nothing around it competes. An `INFO` line recedes into the ground. A `WARN` line warms. An `ERROR` line glows. That gradient is the primary reading instrument, and it works before the user has typed a single keyword.
+traceglass is a dark, evenly-lit field that you hold a log up against so its anomalies glow on their own. The ground is deliberately underexposed — Signal ink `#0F1117` with surface bars `#1A1D27` — not because dark terminals are fashionable, but because tint only carries meaning when nothing around it competes. An `INFO` line keeps neutral message text; only the level *token* is tinted. A `WARN` token warms. An `ERROR`/`ALERT` token glows. That token-only gradient is the primary reading instrument, and it works before the user has typed a single keyword. Chrome speaks in a teal/violet accent pair (`#3EE0D8` / `#8B7CF6`) with hand-mapped Ansi-16 Named fallbacks (Cyan / Magenta) — never nearest-RGB quantization.
 
 Reading a lightbox is diagnosis, so a signal is never left to speak for itself. Every marked thing is paired with plain English: a severity finding carries a title, a category, and an explanation of what the condition *means*; an empty state names the key that gets you out of it; a footer spells out its own keycaps. The system is **legible under pressure** first — a tired reader at 2am must never have to decode a color — and **warm and explanatory** second, where warmth means the interface teaches rather than that it softens. There is no pastel here, no illustration, no reassurance. The warmth is entirely in the sentences.
 
@@ -156,13 +179,14 @@ Two anti-references are confirmed and binding. traceglass is **not an enterprise
 
 **Key Characteristics:**
 
-- A dark, even ground (`#1B1F27`–`#2E3440`) whose job is to stay boring so tint reads
-- Four-step level tint applied to raw log text before any user configuration
-- A five-step severity scale in which exactly one value is permitted to leave the palette family
-- Bold and reverse are the *only* text attributes in the system — no italic, no underline, no blink
-- Every judgment is a marginal annotation (`●` `◆` `▸` `██`), never an edit to the log line
-- Every colored background carries near-black `#14161B` text, at every size, without exception
-- Rounded-arc panels (`╭ ╮ ╰ ╯`) as the single container form
+- A dark, even ground (`#0F1117`–`#1A1D27`) whose job is to stay boring so tint reads; light variant `#F6F7FB` via `--theme light|auto`
+- Four-step level tint applied to the level *token only* (message text stays neutral)
+- A five-step severity scale; Critical `#FF5F6D` remains the one out-of-family break
+- Bold and reverse are the *only* text attributes — reverse also marks the *current* search match
+- Every judgment is a marginal annotation (`●`/`*` severity, `◆`/`*` brand/bookmark, `▌`/`|` cursor, `██` swatch)
+- Every colored background carries ink `#0F1117` text (or light ground on the light theme)
+- Plain box panels (`┌ ┐ └ ┘`); only the focused pane gets the teal accent border
+- ColorDepth `{ Truecolor, Ansi256, Ansi16, Mono }` with `--color` / `NO_COLOR`; hand-mapped Named tables
 - No shadows, no fake depth: three tonal tiers and a hard popup punch-out
 
 ## Colors
@@ -171,17 +195,21 @@ A muted one-dark graphite ground carrying two independent color languages — a 
 
 ### Primary
 
-- **Signal Blue** (`#61AFEF`): the single accent, and the most overloaded token in the system. It marks focus (active panel borders and titles), interactivity (every keycap in every footer), the current selection (active file tab, selected browser row), live progress (the scan gauge), the scrollbar thumb, the input caret, bookmark glyphs, and the `Low` severity step. If something is *reachable or currently yours*, it is Signal Blue.
+- **Signal Teal** (`#3EE0D8`, Indexed 80, Named Cyan): the primary accent. It marks focus (active panel borders and titles), the mode pill (`NORMAL`/`SEARCH`/`FILTER`), keycaps, the scrollbar thumb, the input caret, bookmark glyphs, and the current-search fill. If something is *reachable or currently yours*, it is Signal Teal.
 
 ### Secondary
 
-The severity ramp. This is traceglass's own voice — the one place the product asserts a judgment — and it runs `Critical → Info`, always left to right, always with its text label attached.
+- **Signal Violet** (`#8B7CF6`, Indexed 141, Named Magenta): search-match fill (non-current), secondary chrome, and the dual-accent pair with teal. Never auto-nearest on Ansi16 — Magenta is mandatory.
 
-- **Alarm Red** (`#FF5555`) — `CRIT`: the loudest value in the product and the only one that leaves the one-dark family. See The One Break Rule.
-- **Ember Orange** (`#E88B3D`) — `HIGH`: the second rank; warm, unmistakably hotter than amber, still in-family.
-- **Warn Amber** (`#E5C07B`) — `MED`: the floor of the shipped signature library. Nothing quieter than this currently appears in a findings list.
-- **Signal Blue** (`#61AFEF`) — `LOW`: defined but **latent**, and currently rendered nowhere. The signature library ships nothing below `Medium`; the severity bar skips empty segments; and the panel title, filter tabs, and export header are all derived from the reportable set. Real infrastructure, not dead code — treat it as reserved.
-- **Slate Mute** (`#7C8394`) — `INFO`: latent for the same reason.
+### Severity ramp
+
+The severity ramp is traceglass's own voice — the one place the product asserts a judgment — and it runs `Critical → Info`, always left to right, always with its text label attached.
+
+- **Alarm Red** (`#FF5F6D`, 203, LightRed) — `CRIT`: the loudest value and the only one that leaves the family. See The One Break Rule.
+- **Ember Orange** (`#FF9F43`, 215, Red) — `HIGH`.
+- **Signal Yellow** (`#F7C948`, 221, Yellow) — `MED`: the floor of the shipped signature library.
+- **Signal Blue** (`#5AA9FF`, 75, Blue) — `LOW`: defined but **latent**.
+- **Slate Mute** (`#737A8C`, 243, DarkGray) — `INFO`: latent for the same reason.
 
 ### Tertiary
 
@@ -195,24 +223,27 @@ The two languages still never occupy the same pixels — a tint is foreground on
 
 ### Neutral
 
-- **Paper White** (`#CED3DE`): default log text and any line with no detected level. The brightest *unfilled* thing on screen.
-- **Status Quartz** (`#ABB2BF`): status-bar text — a step below body, because the status line is reference, not content.
-- **Slate Mute** (`#7C8394`): the workhorse recessive tone. Secondary text, explanations, footer prose, inactive panel titles, the `DEBUG`/`TRACE` tint, and the pan-cue chevron.
-- **Gutter Steel** (`#5A6172`): line numbers and the `│` rule that separates them from the text. Sits deliberately below Slate Mute — the gutter must be countable without being read.
-- **Panel Graphite** (`#454C5E`): inactive panel borders and the scrollbar track. The dimmest structural line in the system.
-- **Row Wash** (`#2E3440`): the cursor row and the selected findings row. A background, never a foreground.
-- **Status Trench** (`#1B1F27`): the status band, the darkest surface in the product.
-- **Ink Black** (`#14161B`): the text color for every filled surface. Never a background.
-- **Search Magnesium** (`#F5F5F5`): near-white search-match fill. The only near-white in the palette, and the one value permitted to outshine a highlight — because a search is a question the user asked one second ago.
-- **Level tints**: `ERROR` **Error Coral** (`#E06C75`) · `WARN` **Warn Amber** (`#E5C07B`) · `INFO` **Signal Blue** (`#61AFEF`) · `DEBUG`/`TRACE` **Slate Mute** (`#7C8394`).
-- **Logo gradient**: **Cobalt** (`#5B84EF`) to **Turquoise** (`#3EE0D8`), interpolated per row across the banner. The only gradient in the product and the only place a decorative color appears.
-- **Browser chrome**: `danger` (`#E06C75`) for a failed directory read and `marked` (`#98C379`) for a marked file. These carry the same values as the `ERROR` tint and the moss highlight, but they are their own tokens on purpose — they used to be `palette[0]` and `palette[1]` lookups, which coupled the browser's colors to the highlight rotation's order. They are exempt from the rotation's collision rule because the browser is a punch-out overlay: it is never on screen beside a highlight.
+- **Paper White** (`#D7DAE0`): default log *message* text and any line with no detected level.
+- **Slate Mute** (`#737A8C`): status-bar text, secondary prose, inactive titles, `DEBUG`/`TRACE` tint, pan-cue chevron.
+- **Gutter Steel** (`#5A6172`): line numbers. Sits below Slate Mute — countable without being read.
+- **Border Dim** (`#2B3040`): unfocused panel borders and the scrollbar track.
+- **Row Wash** (`#232731`): the cursor row and the selected findings row.
+- **Surface Ink** (`#1A1D27`): header and status bands.
+- **Ground Ink** (`#0F1117`): app background fill (required so light/dark hosts never show through).
+- **Ink Black** (`#0F1117`): text on every filled surface. Never a background on dark; light theme uses the light ground as fill text when needed.
+- **Search Violet / Current Teal**: non-current matches fill violet; the current match fills teal and adds `REVERSED`.
+- **Level tints** (token only): `ERROR`/`ALERT` **Error Coral** (`#E06C75`) · `WARN` **Warn Amber** (`#E5C07B`) · `INFO` **Info Steel** (`#7FA7CF`) · `DEBUG`/`TRACE` **Slate Mute**.
+- **Logo gradient**: **Cobalt** (`#5B84EF`) to **Turquoise** (`#3EE0D8`) on truecolor only; solid teal otherwise (lerp is RGB-only).
+- **Browser chrome**: `danger` / `marked` as before — punch-out overlay, exempt from rotation collision.
+- **Light variant**: ground `#F6F7FB`, accent `#0E8C86`, secondary `#5B4BD6` (`--theme light|auto`).
 
 ### Named Rules
 
-**The One Break Rule.** Exactly one color in traceglass may leave the one-dark family, and it is Alarm Red `#FF5555` on `CRIT`. It outranks the in-family `ERROR` tint `#E06C75` by being *visibly out of place* — that dissonance is the mechanism, not an accident. A second out-of-family value would spend the same rank twice and cost this one its power. Adding one is a violation.
+**The One Break Rule.** Exactly one color in traceglass may leave the Signal family, and it is Alarm Red `#FF5F6D` on `CRIT`. It outranks the in-family `ERROR` tint `#E06C75` by being *visibly out of place* — that dissonance is the mechanism, not an accident. A second out-of-family value would spend the same rank twice and cost this one its power. Adding one is a violation.
 
-**The Dark-Text-On-Fill Rule.** Every filled surface — severity badge, highlight span, search match, active tab, selected row — pairs its color with Ink Black `#14161B`. No exceptions for "light enough" fills. This is what lets the 12-hue rotation accept any new color without a per-hue contrast decision.
+**The Hand-Mapped Depth Rule.** Every theme slot carries an `(Rgb, Indexed, Named)` triple. Ansi16 uses the Named column from the design table — never Euclidean nearest-RGB (which collapses teal/violet/crit onto White/BrightBlack). `--color 16|256|truecolor|never|always|auto` and `NO_COLOR` select the depth.
+
+**The Dark-Text-On-Fill Rule.** Every filled surface — severity badge, highlight span, search match, active tab, selected row — pairs its color with Ink `#0F1117` (or the light ground on the light theme). No exceptions for "light enough" fills.
 
 **The Two Languages Rule.** Severity color is the product's judgment; highlight color is the user's bookkeeping. They must never be blended, cross-referenced, or unified into one scale. A finding never adopts a highlight hue, and a highlight never inherits a severity.
 
@@ -240,17 +271,17 @@ The two languages still never occupy the same pixels — a tint is foreground on
 
 **The Dim-Is-A-Color Rule.** Recession is expressed with a dimmer *color* — Slate Mute, Gutter Steel, Panel Graphite — never with the terminal `DIM` attribute, which renders inconsistently or not at all across terminals and would silently drop the hierarchy. If something should recede, give it a color, not an attribute.
 
-**The Reverse-For-Selected Rule.** `REVERSED` exists for one purpose: the active severity filter tab. Because those tabs are tinted with the severity palette itself, a terminal that renders those hues faintly would leave the selection ambiguous — reversing the cell makes "selected" structural rather than chromatic. Do not spend reverse anywhere else.
+**The Reverse-For-Selected Rule.** `REVERSED` has two jobs: (1) the active severity filter tab, and (2) the *current* search match. Both need a structural "this one" cue that survives faint palettes. Do not spend reverse anywhere else.
 
-**The Log-Is-Quoted Rule.** Never restyle the log's own text to express your own emphasis. Level tint recolors it; highlights and search fill behind it; nothing bolds, cases, truncates, or rewrites it. Panning horizontally does not even change a line's tint, because the tint is a property of the whole line, not of the slice on screen.
+**The Log-Is-Quoted Rule.** Never restyle the log's own text to express your own emphasis. Level tint recolors only the level token; highlights and search fill behind the message; nothing bolds, cases, truncates, or rewrites it. When horizontal pan scrolls the level token off-screen, the visible message stays neutral `text` — the tint is a property of the token, not of the whole line.
 
 ## Layout
 
 The unit is the character cell, and the grid is absolute: every row is exactly one cell tall, and every column is one cell wide. There is no fluid spacing, no optical centering, and no fractional rhythm — only integer counts.
 
-**Vertical structure**, top to bottom: a 3-cell file-tab strip (present only when more than one file is open, so a single-file session gives the log those three rows back), the body at `Min(3)`, and a 1-cell status band pinned to the bottom. The status band is never bordered and never taller than one row.
+**Vertical structure**, top to bottom: a 1-cell branded header (always), a 1-cell borderless file-tab strip (only when more than one file is open), the body at `Min(3)`, and a 1-cell segmented status band. The status band is never bordered and never taller than one row.
 
-**Horizontal structure**: at a usable width the log pane takes `Min(20)` cells and the highlights legend is a fixed 34-cell rail on the right. Below that breakpoint, the rail stacks beneath the log and is clamped to the available body height; its one-row-per-rule geometry is still the hit-test contract. Fixed-versus-flexible is the point — the legend is a reference column whose rows must not reflow while the user reads them, so the log absorbs every wide-terminal resize.
+**Horizontal structure**: at a usable width the log pane takes `Min(20)` cells and the highlights legend is a fixed 34-cell rail on the right — but only when `rules` is non-empty. An empty legend is hidden; "press a to add highlight" moves into the status hints. Below the width breakpoint, the rail stacks beneath the log.
 
 **The log row** composes left to right in fixed zones: a 2-cell annotation slot (`● ` severity dot, `◆ ` bookmark, or two blanks), then the right-aligned line number at a minimum of 4 cells — widening to the digit count of the file's last line, so the `│` rule stays in one column for the entire file — then ` │ `, then an optional `‹` pan cue, then the text. Annotation accrues leftward; the text column never moves.
 
@@ -276,7 +307,7 @@ A terminal has no shadows, so depth here is **strictly tonal, in three explicit 
 2. **Wash** — Row Wash `#2E3440` on the cursor row and the selected findings row; Status Trench `#1B1F27` on the status band. These read as *nearer* because they are darker and denser than the field, not because they are lifted.
 3. **Punch-out** — overlays clear the cells beneath them outright before drawing. A popup does not float above the viewer; it replaces that region of it. Nothing shows through, and nothing is dimmed behind it.
 
-Focus is carried by border color rather than by elevation: an active panel borders and titles in Signal Blue, an inactive one in Panel Graphite. That is the only "raised" signal in the system.
+Focus is carried by border color rather than by elevation: only the focused pane gets the teal accent border; unfocused panes stay Border Dim. That is the only "raised" signal in the system.
 
 ### Named Rules
 
@@ -284,37 +315,41 @@ Focus is carried by border color rather than by elevation: an active panel borde
 
 ## Shapes
 
-One container form, one corner language: a full box border in rounded-arc glyphs (`╭ ╮ ╰ ╯` with `─` and `│`), used by every panel — viewer, legend, tabs, findings, browser, help, input, progress. Uniformity is the decision. A second border style would read as a second kind of surface, and traceglass has only one kind: a framed region with a titled top edge.
+One container form, one corner language: a full box border in plain glyphs (`┌ ┐ └ ┘` with `─` and `│`), used by every panel — viewer, legend, findings, browser, help, input, progress. File tabs are borderless (1 row). Uniformity is the decision. Modals get `Padding::horizontal(1)` so text does not touch the border.
 
-Titles are inlaid into the top border rather than placed below it, which buys back a row and makes the frame carry state instead of merely enclosing it. Centered titles are used exactly once, on the help sheet.
+Titles are inlaid into the top border rather than placed below it. Centered titles are used exactly once, on the help sheet.
 
-The geometric vocabulary is small and each glyph means one thing: `●` a scanned severity, `◆` a bookmark, `▸` the row being acted on (the active legend rule, the selected setting), `██` a highlight's color swatch, `│` the gutter rule, `‹` content hidden to the left, `›` an input prompt, `█` the input caret, `✓` a marked file, `×N` a repeat count, `▌` the leading edge of work in progress, `░` the part not yet read. Emoji appear in exactly one place — `📁`/`📄` in the file browser — and that is the ceiling, not a precedent.
+The geometric vocabulary is small and each glyph means one thing: `●`/`*` a scanned severity, `◆`/`*` brand mark or bookmark, `▸` the row being acted on, `██` a highlight swatch, `▌`/`|` the cursor / progress head, `▰▱`/`=-` the findings severity bar, `‹` content hidden to the left, `›` an input prompt, `█` the input caret, `✓` a marked file, `×N` a repeat count, `░` unread progress track. Ascii fallbacks are mandatory on Ansi16/Mono (and legacy conhost). Emoji appear in exactly one place — `📁`/`📄` in the file browser.
 
 ### Named Rules
 
-**The One-Frame Rule.** Rounded arcs on every panel, no other border type, ever. No double lines, no heavy lines, no borderless "card" surfaces, no dashed dividers.
+**The One-Frame Rule.** Plain box borders on every panel, no other border type. No rounded arcs, no double lines, no heavy lines, no dashed dividers. Tabs stay borderless.
 
-**The One-Glyph-One-Meaning Rule.** Each glyph in the vocabulary carries exactly one meaning system-wide. Before introducing a new glyph, prove that no existing one covers it — and prove it survives a terminal that renders it as a blank or a double-width cell.
+**The One-Glyph-One-Meaning Rule.** Each glyph in the vocabulary carries exactly one meaning system-wide. Before introducing a new glyph, prove that no existing one covers it — and prove it survives a terminal that renders it as a blank or a double-width cell (ship an ASCII fallback).
 
 ## Components
 
 Components are **explanatory — every surface names its next move**. No panel, empty state, or footer leaves the user without a stated action, and the action is always a literal key rendered as a keycap. This is the mechanism by which the system is warm.
 
+### Header Bar
+
+One surface row: ` ◆ TraceGlass │ agent.log (3/7) │ lens general-triage │ ● 0 crit ● 17 high ● 14 med ` with right-aligned key hints. Severity counts keep their labels (Label-Always).
+
 ### Panels
 
-- **Shape:** full rounded-arc border (1 cell, `╭ ╮ ╰ ╯`), title inlaid in the top edge.
-- **Active:** Signal Blue border, bold Signal Blue title.
-- **Inactive:** Panel Graphite border, bold Slate Mute title.
-- **Distinctive behavior:** the title is a live status readout, not a static name. The log panel's title accumulates state as the user works — ` agent.log [FILTER] [/cert] ` — so the frame answers "what am I looking at, and what have I done to it".
+- **Shape:** full plain border (1 cell, `┌ ┐ └ ┘`), title inlaid in the top edge, 1-cell horizontal padding on overlays.
+- **Active (focused only):** Signal Teal border, bold teal title.
+- **Inactive:** Border Dim, bold Slate Mute title.
+- **Log title:** file name (and `/query` when searching). Lens/version live in the header, not the title.
 
 ### Log Line
 
-The signature component. Fixed left-to-right zones: 2-cell annotation slot → right-aligned line number (min 4 cells, Gutter Steel, or Signal Blue when bookmarked) → ` │ ` → optional `‹` → text.
+The signature component. Fixed left-to-right zones: 1-cell cursor marker (`▌`/`|`) → severity/bookmark glyph → right-aligned line number → optional `‹` → text.
 
-- **Text color:** the line's level tint, computed once per line from its highest-ranking level token (`ERROR`/`ERR`/`FATAL`/`CRITICAL` > `WARN` > `INFO` > `DEBUG`/`TRACE`), falling back to Paper White.
-- **Highlight span:** the rule's rotation color as background, Ink Black bold text, square corners.
-- **Search match:** Search Magnesium background, Ink Black bold — layered *over* highlight spans, always winning.
-- **Cursor row:** Row Wash background plus bold, applied to the whole row including the gutter.
+- **Level token:** highest-ranking token (`ERROR`/`ERR`/`FATAL`/`CRITICAL`/`ALERT` > `WARN` > `INFO` > `DEBUG`/`TRACE`) is tinted; the rest of the line stays Paper White.
+- **Highlight span:** the rule's rotation color as background, Ink bold text.
+- **Search match:** violet fill; **current** match = teal fill + `REVERSED`.
+- **Cursor row:** Row Wash background only (no whole-row bold).
 
 ### Severity Badge
 
@@ -334,7 +369,7 @@ The signature component. Fixed left-to-right zones: 2-cell annotation slot → r
 
 ### Severity Bar
 
-A one-cell-tall stacked bar of `█` blocks, Critical to Info left to right, each segment proportional to its share and floored at one cell so a lone Critical is never rounded out of existence. This is the only quantitative graphic in the product, and it is exactly one row tall with no axis, no legend, and no frame — the boundary that separates it from the banned dashboard idiom. Measurement is allowed inline; a panel built around a measurement is not.
+A one-cell-tall proportional stacked bar using `▰` (filled) / `▱` (empty), Critical to Info left to right, each segment floored at one cell. Ascii fallback on Ansi16/Mono: `=` / `-`. This is the only quantitative graphic in the product — one row, no axis, no frame.
 
 ### Severity Filter Tabs
 
@@ -346,16 +381,17 @@ A one-cell-tall stacked bar of `█` blocks, Critical to Info left to right, eac
 
 ### File Tabs
 
-- **Active:** Signal Blue background, Ink Black bold text, one cell of padding each side.
+- **Layout:** exactly 1 row, borderless. Mouse `tab_hits` align with painted cells (no bordered inset).
+- **Active:** Signal Teal background, Ink bold text.
 - **Inactive:** Slate Mute on ground.
-- **Title:** ` Files (Tab/]) ` — the panel title carries the keybinding, so the strip teaches its own navigation.
 
 ### Status Bar
 
-- **Style:** 1 cell, Status Trench background, Status Quartz text, no border, one leading space.
-- **Default content:** ` L4/15 · 7 hl · 2 bm · 7 fd  ·  ? help` — segments joined by ` · `, each appearing only when non-default, and always ending in the help affordance.
-- **Message state:** transient messages take the whole band, with outcome tint carrying success/progress/warning/failure while the words remain unchanged. Voice is lowercase, unpunctuated, and tells you the key to press: `no bookmarks — press m to mark a line`, `line 900 past end — jumped to L412`.
-- **Outcome tint:** existing success messages use Moss, progress uses Signal Blue, warnings use Warn Amber, and failures use Error Coral. The words do not change, and unknown messages stay Status Quartz.
+- **Style:** 1 cell, Surface Ink background, segmented spans — left mode pill, middle context/message, right `Ln x/y  p%`.
+- **Mode pill:** `NORMAL` / `SEARCH` / `FILTER` on teal fill.
+- **Default content:** expanded words (`findings`, `highlights`, `bookmarks`) — no `hl`/`fd` jargon. Search shows `n of N`. Empty-rules hint: `press a to add highlight`.
+- **Message state:** transient messages occupy the middle segment; left mode pill and right position remain. Voice stays lowercase and actionable.
+- **Outcome tint:** success → Moss, progress → Teal, warnings → Warn Amber, failures → Error Coral.
 
 ### Watchlist Workspace
 
@@ -410,12 +446,15 @@ Vertically centered in the log pane: the gradient banner, the version, the line 
 
 ### Don't:
 
-- **Don't** add a second out-of-family color. Alarm Red `#FF5555` on `CRIT` is the one permitted break, and a second one costs it its rank.
+- **Don't** add a second out-of-family color. Alarm Red `#FF5F6D` on `CRIT` is the one permitted break, and a second one costs it its rank.
+- **Don't** auto-quantize colors to Ansi16 via nearest-RGB. Use the hand-mapped Named column.
 - **Don't** build a dashboard. No tiles, donuts, gauges-as-decoration, KPI panels, or chart frames. Quantitative graphics stay one row tall and inline, like the severity bar.
 - **Don't** reach for neon-terminal affect: no glow, no blink, no green-on-black, no saturation standing in for personality.
 - **Don't** use italic, underline, strikethrough, blink, or the terminal `DIM` attribute. Bold and reverse are the whole vocabulary.
 - **Don't** simulate depth — no ASCII shadows, offset borders, half-block gradients, or dimmed modal backdrops. Three tonal tiers and a hard punch-out.
-- **Don't** introduce a second border style. Rounded arcs on every panel, always.
+- **Don't** introduce a second border style. Plain boxes on every panel; tabs stay borderless.
+- **Don't** color the whole log line for level — tint the token only.
+- **Don't** replace the whole status bar with a transient message — keep mode and position.
 - **Don't** blend the two color languages: findings never adopt highlight hues, highlights never inherit severities.
 - **Don't** let a row move because state changed elsewhere — take an existing row instead of inserting one, and never break click-to-row mapping.
 - **Don't** restyle the log's own text for emphasis, or let horizontal panning change a line's tint.

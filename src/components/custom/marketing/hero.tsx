@@ -35,9 +35,9 @@ export function Hero() {
           </Link>
 
           <h1 className="text-display font-display text-balance text-foreground">
-            Grammarly,{' '}
+            A privacy-first{' '}
             <span className="bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent dark:from-brand-400 dark:to-brand-200">
-              for logs.
+              log inspector.
             </span>
           </h1>
 
@@ -112,46 +112,58 @@ export function Hero() {
           >
             <code>
               <span className="block whitespace-pre">
-                <span className="text-zinc-500">2026-07-22T10:14:02Z </span>
-                <span className="text-zinc-400">api-gateway-1 | </span>
-                <span className="bg-yellow-500/20 font-semibold text-yellow-300">INFO</span>
-                <span className="text-zinc-200"> Server ready on :8080</span>
+                <span style={{ color: '#737A8C' }}>2026-07-22T10:14:02Z </span>
+                <span style={{ color: '#D7DAE0' }}>api-gateway-1 | </span>
+                <span className="font-semibold" style={{ color: '#7FA7CF' }}>
+                  INFO
+                </span>
+                <span style={{ color: '#D7DAE0' }}> Server ready on :8080</span>
               </span>
               <span className="block whitespace-pre">
-                <span className="text-zinc-500">2026-07-22T10:14:03Z </span>
-                <span className="text-zinc-400">api-gateway-1 | </span>
-                <span className="bg-yellow-500/20 font-semibold text-yellow-300">INFO</span>
-                <span className="text-zinc-200"> Connected to postgres</span>
+                <span style={{ color: '#737A8C' }}>2026-07-22T10:14:03Z </span>
+                <span style={{ color: '#D7DAE0' }}>api-gateway-1 | </span>
+                <span className="font-semibold" style={{ color: '#7FA7CF' }}>
+                  INFO
+                </span>
+                <span style={{ color: '#D7DAE0' }}> Connected to postgres</span>
               </span>
               <span className="block whitespace-pre">
-                <span className="text-zinc-500">2026-07-22T10:14:11Z </span>
-                <span className="text-zinc-400">payments-api-x | </span>
-                <span className="bg-red-500/25 font-bold text-red-300">FATAL</span>
-                <span className="text-zinc-200">
+                <span style={{ color: '#737A8C' }}>2026-07-22T10:14:11Z </span>
+                <span style={{ color: '#D7DAE0' }}>payments-api-x | </span>
+                <span className="font-semibold" style={{ color: '#E06C75' }}>
+                  FATAL
+                </span>
+                <span style={{ color: '#D7DAE0' }}>
                   {' '}
                   NullPointerException at CheckoutService.charge:142
                 </span>
               </span>
               <span className="block whitespace-pre">
-                <span className="text-zinc-500">2026-07-22T10:14:12Z </span>
-                <span className="text-zinc-400">auth-svc-b | </span>
-                <span className="bg-orange-500/25 font-semibold text-orange-300">ERROR</span>
-                <span className="text-zinc-200"> upstream timeout, retries=3</span>
+                <span style={{ color: '#737A8C' }}>2026-07-22T10:14:12Z </span>
+                <span style={{ color: '#D7DAE0' }}>auth-svc-b | </span>
+                <span className="font-semibold" style={{ color: '#E06C75' }}>
+                  ERROR
+                </span>
+                <span style={{ color: '#D7DAE0' }}> upstream timeout, retries=3</span>
               </span>
               <span className="block whitespace-pre">
-                <span className="text-zinc-500">2026-07-22T10:14:14Z </span>
-                <span className="text-zinc-400">payments-api-x | </span>
-                <span className="bg-yellow-500/20 font-semibold text-yellow-300">INFO</span>
-                <span className="text-zinc-200"> Starting graceful shutdown</span>
+                <span style={{ color: '#737A8C' }}>2026-07-22T10:14:14Z </span>
+                <span style={{ color: '#D7DAE0' }}>payments-api-x | </span>
+                <span className="font-semibold" style={{ color: '#7FA7CF' }}>
+                  INFO
+                </span>
+                <span style={{ color: '#D7DAE0' }}> Starting graceful shutdown</span>
               </span>
-              <span className="block whitespace-pre text-zinc-500">
+              <span className="block whitespace-pre" style={{ color: '#737A8C' }}>
                 {'\n'}counts: lines=5 critical=1 info=3
               </span>
               <span className="block whitespace-pre">
-                <span className="text-zinc-500">$ </span>
-                <span className="text-zinc-400">echo $?</span>
+                <span style={{ color: '#737A8C' }}>$ </span>
+                <span style={{ color: '#D7DAE0' }}>echo $?</span>
               </span>
-              <span className="block whitespace-pre bg-red-500/10 font-bold text-red-400">1</span>
+              <span className="block whitespace-pre font-bold" style={{ color: '#E06C75' }}>
+                1
+              </span>
             </code>
           </Terminal>
         </div>

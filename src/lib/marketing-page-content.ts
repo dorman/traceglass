@@ -35,7 +35,7 @@ const homeSections: SnapshotSection[] = [
     'hero',
     {
       eyebrow: 'Rust-native · local-first · beta installer',
-      heading: 'Grammarly, for logs.',
+      heading: 'A privacy-first log inspector.',
       body: 'Open a diagnostic file in the TUI, or pipe logs through a machine mode. TraceGlass keeps source lines visible while it ranks signals across Splunk, Docker, Kubernetes, databases, and endpoint collections.',
       links: [
         { label: 'Install TraceGlass', href: '/install' },
@@ -48,16 +48,9 @@ const homeSections: SnapshotSection[] = [
         { value: '1 click', label: 'beta install path' },
       ],
       terminal: {
-        title: 'docker-compose.log',
-        prompt: '$ traceglass docker-compose.log',
-        lines: [
-          'INFO  Server ready on :8080',
-          'INFO  Connected to postgres',
-          'HIGH  Container startup or runtime failure',
-          'MED   Connection refused / reset',
-          'finding → docker-compose.log:3',
-          'press Enter to jump to evidence',
-        ],
+        title: 'sample.log',
+        prompt: '$ traceglass sample.log',
+        lines: ['Signal TUI · sample.log · general-triage', '7 findings · press F to review'],
       },
     },
     [asset('hero-terminal', 'terminal', 'Highlighted log output')],

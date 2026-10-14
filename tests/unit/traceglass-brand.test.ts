@@ -54,7 +54,7 @@ describe('TraceGlass branding', () => {
     const homeCopy = JSON.stringify(home).toLowerCase();
 
     expect(sections).toEqual(['hero', 'features', 'use-cases', 'workflow', 'privacy', 'faq']);
-    expect(home.sections[0]?.data.heading).toBe('Grammarly, for logs.');
+    expect(home.sections[0]?.data.heading).toBe('A privacy-first log inspector.');
     expect(homeCopy).not.toContain('pricing');
     expect(homeCopy).not.toContain('$12');
     expect(homeCopy).not.toContain('read the signal. ignore the noise.');

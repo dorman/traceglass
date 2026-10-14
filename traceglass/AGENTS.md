@@ -2,7 +2,7 @@
 
 ## Cursor Cloud specific instructions
 
-`traceglass` is a single-binary Rust terminal UI (TUI) app ("Grammarly for logs"). There is only one service: the CLI/TUI binary itself.
+`traceglass` is a single-binary Rust terminal UI (TUI) app (a privacy-first log inspector). There is only one service: the CLI/TUI binary itself.
 
 ### Toolchain
 - The crate uses `edition = "2024"` (see `Cargo.toml`), which requires Rust >= 1.85. The default `rustup` toolchain is set to `stable` (currently 1.97.x). Do not downgrade; the pre-1.85 toolchain fails to even parse the manifest (`feature edition2024 is required`).
@@ -50,7 +50,7 @@ restore terminal (panic hook also clears mouse/paste).
 | `output.rs` | Sanitize raw output and serialize stable JSON/CSV machine records |
 | `rules.rs` | Compile keyword/regex highlights with size/nest budgets |
 | `signatures.rs` | Built-in Medium–Critical scan library (no catch-all ERROR/WARN) |
-| `theme.rs` | Dark palette + level-tint tokens; panel chrome (no theme cycling) |
+| `theme.rs` | Signal palette (teal/violet) + ColorDepth + light/dark; `--color`/`--theme` |
 | `browser.rs` | In-TUI filesystem browser (mark / open / recursive `O`) |
 | `clipboard.rs` | OSC-52 yank helpers (`copy_text`) |
 | `config.rs` | Tiny `~/.config/traceglass` prefs (ignore-case, legend, scan-on-open, browser cwd); edited in-app via the settings panel (`,`) |

@@ -23,7 +23,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { usePageOwner } from '@/hooks/use-page-owner';
 import { useIsAdmin, useSession } from '@/lib/auth-client';
 import { type NavGroup, type NavItem, navItems } from '@/lib/nav';
-import { siteName } from '@/lib/site';
 import { cn } from '@/lib/utils';
 
 function useIsAuthenticated(): boolean {
@@ -144,8 +143,8 @@ export function SiteNav() {
           href="/"
           className="mr-2 shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         >
-          <BrandMark className="h-9 w-auto sm:h-10" priority sizes="160px" />
-          <span className="sr-only">{siteName}</span>
+          {/* Icon mark + text: the stacked PNG wordmark is illegible at h-14. */}
+          <BrandMark variant="mark" showWordmark priority sizes="120px" />
         </Link>
 
         {/* Desktop (md+): inline slots — direct links + `menu` dropdowns */}
@@ -314,8 +313,7 @@ export function SiteNav() {
               >
                 <SheetHeader>
                   <SheetTitle className="text-left">
-                    <BrandMark className="h-10 w-auto" sizes="180px" />
-                    <span className="sr-only">{siteName}</span>
+                    <BrandMark variant="mark" showWordmark sizes="120px" />
                   </SheetTitle>
                 </SheetHeader>
                 <nav aria-label="Mobile" className="mt-6 flex flex-col gap-1 overflow-y-auto">
@@ -422,8 +420,7 @@ export function SiteFooter() {
           href="/"
           className="mr-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         >
-          <BrandMark className="h-10 w-auto" sizes="160px" />
-          <span className="sr-only">{siteName}</span>
+          <BrandMark variant="mark" showWordmark sizes="120px" />
         </Link>
         {footer.map((item) => (
           <Button

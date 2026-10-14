@@ -1,6 +1,6 @@
 # TraceGlass
 
-**Grammarly for logs** — a local Rust terminal UI that opens diagnostic logs,
+**A privacy-first log inspector** — a local Rust terminal UI that opens diagnostic logs,
 finds review signals, and helps you search, filter, and triage the evidence.
 Keyword and regex highlights are user-controlled entries in a local watchlist;
 curated built-in signatures are a separate versioned scan catalog. No AI,
@@ -209,3 +209,7 @@ cargo fmt --check
 
 The fixture and mode matrix is documented in [`tests/README.md`](tests/README.md).
 Resource limits are documented in [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
+
+## License
+
+MIT License. Copyright (c) 2026 TraceGlass. See [`LICENSE`](LICENSE).

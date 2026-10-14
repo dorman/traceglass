@@ -1,13 +1,12 @@
 // @polsia:user-owned
 //
-// Faux macOS terminal shell used by the TraceGlass marketing page demos. Renders a
-// faux window chrome (traffic lights + header strip + monospace panel) around
-// React children that contain the actual log lines. Server Component — no data,
-// no effects, no 'use client'. The wrapped `<div className="dark">` forces the
-// panel to read dark even on a light page; tokens are the raw zinc palette so
-// the demo isn't tied to the brand seed.
+// Signal CLI chrome shell for TraceGlass marketing demos. Matches Direction B
+// palette from `traceglass/src/theme.rs` (see `src/lib/signal-theme.ts`): teal
+// brand header, one dashed accent frame around the log body, monospace on the
+// Signal ground. Server Component — no data, no effects, no 'use client'.
 
 import type * as React from 'react';
+import { signalTheme } from '@/lib/signal-theme';
 import { cn } from '@/lib/utils';
 
 export interface TerminalProps {
@@ -30,32 +29,37 @@ export function Terminal({
 }: TerminalProps) {
   return (
     <div
-      className={cn(
-        'overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-100 shadow-xl shadow-black/40 dark',
-        className,
-      )}
+      className={cn('signal-tui dark', className)}
+      style={{ background: signalTheme.bg, color: signalTheme.text }}
     >
-      <div className="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900/70 px-4 py-2.5">
-        <div className="flex gap-1.5">
-          <span aria-hidden="true" className="size-3 rounded-full bg-zinc-700" />
-          <span aria-hidden="true" className="size-3 rounded-full bg-zinc-700" />
-          <span aria-hidden="true" className="size-3 rounded-full bg-zinc-700" />
-        </div>
+      <div className="signal-tui__header">
+        <span className="signal-tui__brand">◆ TraceGlass</span>
+        <span className="signal-tui__divider">│</span>
         {!compact ? (
-          <div className="ml-3 flex min-w-0 flex-1 items-center gap-2 text-[11px] font-medium text-zinc-400">
-            <span className="truncate font-mono">{title}</span>
-          </div>
-        ) : null}
+          <>
+            <span className="signal-tui__file">{title}</span>
+            <span className="signal-tui__divider">│</span>
+          </>
+        ) : (
+          <span className="signal-tui__file">{title}</span>
+        )}
+        <span className="signal-tui__lens truncate">{prompt}</span>
       </div>
-      <div className="flex items-start gap-2 border-b border-zinc-800/70 bg-zinc-950 px-4 py-2 font-mono text-[12px] text-zinc-300">
-        <span aria-hidden="true" className="select-none text-zinc-500">
-          ❯
+      <div className="signal-tui__frame">
+        <span className="signal-tui__frame-label">{title}</span>
+        <pre
+          className="signal-tui__log"
+          style={{ color: signalTheme.text, padding: '0.35rem 0.25rem' }}
+        >
+          {children}
+        </pre>
+      </div>
+      <div className="signal-tui__status">
+        <span className="signal-tui__mode">NORMAL</span>
+        <span className="signal-tui__status-mid">
+          <span className="signal-tui__help">? help</span>
         </span>
-        <span className="break-all">{prompt}</span>
       </div>
-      <pre className="overflow-x-auto px-4 py-4 font-mono text-[12.5px] leading-[1.65] text-zinc-200">
-        {children}
-      </pre>
     </div>
   );
 }

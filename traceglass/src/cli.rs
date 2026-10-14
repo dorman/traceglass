@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use clap::{Parser, ValueEnum};
 
+use crate::theme::{ColorMode, ThemeMode};
+
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 pub enum OutputFormat {
     /// Emit sanitized source text without terminal control sequences.
@@ -12,7 +14,58 @@ pub enum OutputFormat {
     Csv,
 }
 
-/// TraceGlass — Grammarly for logs: highlight, scan, and triage diagnostic logs.
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum ColorFlag {
+    /// Detect from NO_COLOR / COLORTERM / TERM.
+    Auto,
+    /// Force color on (still depth-detected).
+    Always,
+    /// Disable all color (Mono).
+    Never,
+    /// Force the Ansi-16 Named palette.
+    #[value(name = "16")]
+    Ansi16,
+    /// Force the 256-color Indexed palette.
+    #[value(name = "256")]
+    Ansi256,
+    /// Force truecolor RGB.
+    Truecolor,
+}
+
+impl From<ColorFlag> for ColorMode {
+    fn from(value: ColorFlag) -> Self {
+        match value {
+            ColorFlag::Auto => ColorMode::Auto,
+            ColorFlag::Always => ColorMode::Always,
+            ColorFlag::Never => ColorMode::Never,
+            ColorFlag::Ansi16 => ColorMode::Ansi16,
+            ColorFlag::Ansi256 => ColorMode::Ansi256,
+            ColorFlag::Truecolor => ColorMode::Truecolor,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum ThemeFlag {
+    /// Signal dark (default).
+    Dark,
+    /// Signal light.
+    Light,
+    /// Detect from COLORFGBG when available; otherwise dark.
+    Auto,
+}
+
+impl From<ThemeFlag> for ThemeMode {
+    fn from(value: ThemeFlag) -> Self {
+        match value {
+            ThemeFlag::Dark => ThemeMode::Dark,
+            ThemeFlag::Light => ThemeMode::Light,
+            ThemeFlag::Auto => ThemeMode::Auto,
+        }
+    }
+}
+
+/// TraceGlass — a privacy-first log inspector: highlight, scan, and triage diagnostic logs.
 ///
 /// Run with no arguments for the welcome screen (press `o` to browse for
 /// logs), or pass files, folders, or .zip bundles directly. A file path opens
@@ -23,7 +76,7 @@ pub enum OutputFormat {
 #[command(
     name = "traceglass",
     version,
-    about = "TraceGlass — Grammarly for logs: highlight, scan, and triage diagnostic logs",
+    about = "TraceGlass — a privacy-first log inspector: highlight, scan, and triage diagnostic logs",
     long_about = None
 )]
 pub struct Cli {
@@ -68,4 +121,13 @@ pub struct Cli {
     /// finding groups and review priority.
     #[arg(long, value_name = "ID", default_value = "general-triage")]
     pub lens: Option<String>,
+
+    /// Color depth: auto (default), always, never, 16, 256, or truecolor.
+    /// Honours NO_COLOR unless overridden with always/16/256/truecolor.
+    #[arg(long = "color", value_enum, default_value_t = ColorFlag::Auto)]
+    pub color: ColorFlag,
+
+    /// Theme variant: dark (Signal, default), light, or auto (COLORFGBG).
+    #[arg(long = "theme", value_enum, default_value_t = ThemeFlag::Dark)]
+    pub theme: ThemeFlag,
 }

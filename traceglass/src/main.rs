@@ -119,7 +119,7 @@ fn main() -> Result<()> {
         return output::write_machine(&sources, format, &library, &lens, cli.findings.as_deref());
     }
 
-    let theme = theme::Theme::dark();
+    let theme = theme::Theme::from_prefs(cli.color.into(), cli.theme.into());
     // `-i` always enables for this session; otherwise honour the saved pref
     // written when the user presses `i` in the TUI. `l` persists show_legend;
     // browsing with `o` persists the last browser directory.
@@ -137,6 +137,7 @@ fn main() -> Result<()> {
     };
     let lens = selected_lens(&cli);
     let mut app = App::new_with_lens(&cli.files, rules, ignore_case, lens)?;
+    app.theme = theme;
     if explicit_cli_rules {
         // CLI rules win for this run; expose that the workspace can be saved
         // explicitly rather than presenting them as the on-disk list.
