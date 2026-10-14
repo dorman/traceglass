@@ -12,8 +12,6 @@ import { SignaturesPreview } from '@/components/custom/marketing/signatures-prev
 import { WaitlistForm } from '@/components/custom/waitlist-form';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { signalTheme } from '@/lib/signal-theme';
-import '@/components/custom/signal-tui.css';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getRichText, richTextFieldKey } from '@/lib/business/marketing/rich-text';
 import {
@@ -23,6 +21,7 @@ import {
   SECTION_LAYOUT_KINDS,
   type SectionLayoutPreset,
 } from '@/lib/contracts/pages';
+import { signalTheme } from '@/lib/signal-theme';
 
 const layoutClassNames: Record<SectionLayoutPreset, string> = {
   'one-column': 'grid-cols-1',

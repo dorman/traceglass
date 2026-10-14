@@ -2,6 +2,8 @@
  * styles, and @import your own .css files. Prefer tw-animate-css for motion (animate-in,
  * fade-in, slide-in-from-bottom-N, duration-*). globals.css is framework-owned — edit HERE. */
 
+@import "../components/custom/signal-tui.css";
+
 :root {
   --site-primary: #55a77c;
   --site-accent: #86a58f;

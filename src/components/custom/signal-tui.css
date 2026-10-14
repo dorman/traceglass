@@ -26,8 +26,9 @@
   overflow: hidden;
   background: var(--signal-bg);
   color: var(--signal-text);
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono',
-    'Courier New', monospace;
+  font-family:
+    ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
   font-size: 12.5px;
   line-height: 1.55;
   border-radius: 0.65rem;
@@ -242,15 +243,22 @@
   white-space: nowrap;
 }
 
+.signal-tui__findings-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--signal-bg) 72%, #000);
+  z-index: 1;
+}
+
 .signal-tui__findings {
   position: absolute;
-  inset: 0.55rem 0.65rem 0.55rem;
+  inset: 0.7rem 0.85rem 0.7rem;
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
   padding: 0.55rem 0.65rem 0.65rem;
   border: 1px solid var(--signal-accent);
-  background: color-mix(in srgb, var(--signal-bg) 88%, #000);
+  background: var(--signal-bg);
   overflow: auto;
   z-index: 2;
 }
@@ -264,14 +272,26 @@
 
 .signal-tui__sev-bar {
   display: flex;
-  height: 0.55rem;
+  height: 0.7rem;
   overflow: hidden;
+  letter-spacing: -0.08em;
+  font-size: 0.7rem;
+  line-height: 0.7rem;
+  color: transparent;
   background: var(--signal-border);
 }
 
 .signal-tui__sev-bar > span {
   display: block;
   height: 100%;
+  /* Approximate CLI ▰ blocks with a dashed fill feel. */
+  background-image: repeating-linear-gradient(
+    90deg,
+    currentColor 0 0.55ch,
+    transparent 0.55ch 0.85ch
+  );
+  background-color: transparent;
+  color: inherit;
 }
 
 .signal-tui__filter {

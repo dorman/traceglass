@@ -6,7 +6,6 @@
 // Signal ground. Server Component — no data, no effects, no 'use client'.
 
 import type * as React from 'react';
-import '@/components/custom/signal-tui.css';
 import { signalTheme } from '@/lib/signal-theme';
 import { cn } from '@/lib/utils';
 

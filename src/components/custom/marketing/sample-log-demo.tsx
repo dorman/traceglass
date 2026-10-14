@@ -4,7 +4,6 @@
 'use client';
 
 import { type CSSProperties, useEffect, useState } from 'react';
-import '@/components/custom/signal-tui.css';
 import { SAMPLE_LOG_FADE_MS, SAMPLE_LOG_SCENE_MS, signalTheme } from '@/lib/signal-theme';
 import { cn } from '@/lib/utils';
 
@@ -163,14 +162,20 @@ function Header() {
       <span className="signal-tui__divider">│</span>
       <span className="signal-tui__lens">lens general-triage</span>
       <span className="signal-tui__divider">│</span>
-      <span className="signal-tui__sev signal-tui__sev--crit">
-        <span className="signal-tui__sev-dot">●</span>0 crit
+      <span className="signal-tui__sev">
+        <span className="signal-tui__sev-dot signal-tui__sev--crit">●</span>
+        <span className="signal-tui__sev--crit">0</span>
+        <span> crit</span>
       </span>
-      <span className="signal-tui__sev signal-tui__sev--high">
-        <span className="signal-tui__sev-dot">●</span>5 high
+      <span className="signal-tui__sev">
+        <span className="signal-tui__sev-dot signal-tui__sev--high">●</span>
+        <span className="signal-tui__sev--high">5</span>
+        <span> high</span>
       </span>
-      <span className="signal-tui__sev signal-tui__sev--med">
-        <span className="signal-tui__sev-dot">●</span>2 med
+      <span className="signal-tui__sev">
+        <span className="signal-tui__sev-dot signal-tui__sev--med">●</span>
+        <span className="signal-tui__sev--med">2</span>
+        <span> med</span>
       </span>
     </div>
   );
@@ -241,14 +246,15 @@ function LogBody({ scene }: { scene: Scene }) {
 
 function FindingsPopup() {
   return (
-    <div className="signal-tui__frame" style={{ position: 'relative' }}>
+    <div className="signal-tui__frame" style={{ position: 'relative', minHeight: '22rem' }}>
+      <div className="signal-tui__findings-backdrop" aria-hidden="true" />
       <div className="signal-tui__findings" role="dialog" aria-label="Scan findings">
         <div className="signal-tui__findings-title">
           Scan findings – 7 0 crit · 5 high · 2 med · General Triage v0.1.0
         </div>
         <div className="signal-tui__sev-bar" aria-hidden="true">
-          <span style={{ width: '71%', background: signalTheme.sevHigh }} />
-          <span style={{ width: '29%', background: signalTheme.sevMed }} />
+          <span style={{ width: '71%', color: signalTheme.sevHigh }} />
+          <span style={{ width: '29%', color: signalTheme.sevMed }} />
         </div>
         <div className="signal-tui__filter">
           <span>filter</span>
