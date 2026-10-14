@@ -155,3 +155,95 @@ fn unknown_lens_is_a_usage_error_before_input_processing() {
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("unknown lens"));
 }
+
+/// GIF demo support pack: planted OOM → restart-loop cascade must keep firing
+/// the striking built-ins (no detection-code changes required).
+#[test]
+fn demo_bundle_surfaces_planted_incident_cascade() {
+    let findings_path = temporary_findings_path();
+    let output = binary()
+        .args([
+            "--lens",
+            "incident-reliability",
+            "--findings",
+            findings_path.to_str().expect("UTF-8 temporary path"),
+            "samples/demo-bundle/case",
+        ])
+        .output()
+        .expect("scan demo-bundle/case");
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let document: Value =
+        serde_json::from_slice(&std::fs::read(&findings_path).expect("findings file"))
+            .expect("findings JSON");
+    let findings = document["findings"].as_array().expect("findings array");
+    assert!(
+        findings.len() >= 10,
+        "expected a multi-signal cascade, got {}",
+        findings.len()
+    );
+
+    let ids: std::collections::BTreeSet<&str> = findings
+        .iter()
+        .filter_map(|f| f["match"]["signature_id"].as_str())
+        .collect();
+    for required in [
+        "fatal-error-crash",
+        "resource-exhaustion",
+        "kubernetes-workload-failure",
+        "container-runtime-failure",
+        "nginx-upstream-failure",
+        "postgresql-connection-transaction-failure",
+        "mysql-storage-concurrency-failure",
+        "connection-refused-reset",
+        "systemd-unit-failure",
+        "diagnostic-assertion-traceback",
+    ] {
+        assert!(
+            ids.contains(required),
+            "missing planted signature {required}; have {ids:?}"
+        );
+    }
+
+    assert!(
+        findings.iter().any(|f| f["severity"] == "critical"),
+        "demo should surface at least one Critical finding"
+    );
+    assert!(
+        findings
+            .iter()
+            .any(|f| f["lens"]["id"] == "incident-reliability"),
+        "incident-reliability lens should annotate findings"
+    );
+
+    // Zip twin must scan the same story (no README tab noise).
+    let zip_findings_path = temporary_findings_path();
+    let zip_output = binary()
+        .args([
+            "--lens",
+            "incident-reliability",
+            "--findings",
+            zip_findings_path.to_str().expect("UTF-8 temporary path"),
+            "samples/demo-bundle.zip",
+        ])
+        .output()
+        .expect("scan demo-bundle.zip");
+    assert!(zip_output.status.success());
+    let zip_document: Value =
+        serde_json::from_slice(&std::fs::read(&zip_findings_path).expect("zip findings file"))
+            .expect("zip findings JSON");
+    let zip_ids: std::collections::BTreeSet<&str> = zip_document["findings"]
+        .as_array()
+        .expect("zip findings array")
+        .iter()
+        .filter_map(|f| f["match"]["signature_id"].as_str())
+        .collect();
+    assert_eq!(ids, zip_ids, "directory and zip demo packs must agree");
+
+    let _ = std::fs::remove_file(findings_path);
+    let _ = std::fs::remove_file(zip_findings_path);
+}
