@@ -14,7 +14,7 @@ export interface TerminalProps {
   prompt?: string;
   /** Optional short label on the title bar (e.g. "docker-compose.log"). */
   title?: string;
-  /** Hide the title bar (useful when the prompt already lives outside). */
+  /** Hide the file title in the header (frame label still uses title). */
   compact?: boolean;
   className?: string;
   children?: React.ReactNode;
@@ -40,9 +40,7 @@ export function Terminal({
             <span className="signal-tui__file">{title}</span>
             <span className="signal-tui__divider">│</span>
           </>
-        ) : (
-          <span className="signal-tui__file">{title}</span>
-        )}
+        ) : null}
         <span className="signal-tui__lens truncate">{prompt}</span>
       </div>
       <div className="signal-tui__frame">

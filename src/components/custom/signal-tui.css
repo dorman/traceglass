@@ -202,7 +202,7 @@
 
 .signal-tui__match {
   background: var(--signal-secondary);
-  color: var(--signal-text);
+  color: var(--signal-match-fg);
 }
 
 .signal-tui__match--current {

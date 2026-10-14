@@ -8,6 +8,7 @@ const steps = [
   {
     n: '01',
     title: 'Add to your local watchlist',
+    frameTitle: '~/.config/traceglass',
     body: 'Press a for a keyword highlight or r for a regex highlight. Enter adds the user-controlled entry to the local watchlist; built-in signatures remain a separate scan catalog.',
     prompt: '$ cat traceglass.toml',
     code: (
@@ -38,6 +39,7 @@ const steps = [
   {
     n: '02',
     title: 'Pipe in your logs',
+    frameTitle: 'pod-logs.txt',
     body: 'Anything that already produces logs works — tail, journalctl, docker logs, kubectl, a CSV export, a file path.',
     prompt: '$ kubectl logs api-x | traceglass --watchlist traceglass.toml',
     code: (
@@ -51,10 +53,10 @@ const steps = [
         </span>
         <span className="block whitespace-pre">
           <span style={{ color: '#737A8C' }}>E0712 14:01:09 kubelet: </span>
-          <span className="font-semibold" style={{ color: '#E06C75' }}>
-            ERROR
+          <span className="font-semibold" style={{ color: '#E5C07B' }}>
+            OOMKilled
           </span>
-          <span style={{ color: '#D7DAE0' }}> OOMKilled memory limit 512Mi exceeded</span>
+          <span style={{ color: '#D7DAE0' }}> memory limit 512Mi exceeded</span>
         </span>
         <span className="block whitespace-pre" style={{ color: '#737A8C' }}>
           {'... 142 lines ...'}
@@ -65,6 +67,7 @@ const steps = [
   {
     n: '03',
     title: 'Get highlights, findings + an exit code',
+    frameTitle: 'exit-code',
     body: 'Colorized output goes to your terminal. A summary line reports the counts. Exit 0 on clean, exit 1 when critical matches — wire straight into CI.',
     prompt: '$ echo $?',
     code: (
@@ -118,7 +121,7 @@ export function HowItWorks() {
               <div className="p-3">
                 <Terminal
                   prompt={step.prompt}
-                  title="~/.config/traceglass"
+                  title={step.frameTitle}
                   compact
                   className="text-[11.5px]"
                 >

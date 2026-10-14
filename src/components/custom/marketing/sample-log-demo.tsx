@@ -300,7 +300,7 @@ function LogBody({ scene }: { scene: Scene }) {
       <pre className="signal-tui__log">
         {LINES.map((line) => {
           const selected = line.n === SELECTED;
-          const showLevelAsCurrent = scene === 'search' && selected && line.level === 'ERROR';
+          const levelIsSearchHit = scene === 'search' && line.level === 'ERROR';
           return (
             <div
               key={line.n}
@@ -318,8 +318,15 @@ function LogBody({ scene }: { scene: Scene }) {
                 {line.finding ? '●' : ' '}
               </span>
               <span className="signal-tui__ts">{line.ts}</span>
-              {showLevelAsCurrent ? (
-                <span className="signal-tui__match signal-tui__match--current">{line.level}</span>
+              {levelIsSearchHit ? (
+                <span
+                  className={cn(
+                    'signal-tui__match',
+                    selected && 'signal-tui__match--current',
+                  )}
+                >
+                  {line.level}
+                </span>
               ) : (
                 <span className={cn('signal-tui__level', levelClass(line.level))}>
                   {line.level}
@@ -346,7 +353,7 @@ function FindingsPopup() {
       <div className="signal-tui__findings-backdrop" aria-hidden="true" />
       <div className="signal-tui__findings" role="dialog" aria-label="Scan findings">
         <div className="signal-tui__findings-title">
-          Scan findings – 7 0 crit · 5 high · 2 med · General Triage v0.1.0
+          Scan findings – 7   0 crit · 5 high · 2 med · General Triage v0.1.0
         </div>
         <div className="signal-tui__sev-bar" aria-hidden="true">
           <span
