@@ -1,0 +1,10 @@
+# Synthetic journalctl -u api.service excerpt — node ip-192-0-2-44.example.com
+Oct 13 14:10:01 ip-192-0-2-44 systemd[1]: Started api.service - Checkout API worker.
+Oct 13 14:18:00 ip-192-0-2-44 kubelet[1102]: I1013 14:18:00.100001 syncing pod api-7d9f8c4b2-xk2qz
+Oct 13 14:22:50 ip-192-0-2-44 kubelet[1102]: W1013 14:22:50.200002 Probe failed readiness for api
+Oct 13 14:23:05 ip-192-0-2-44 containerd[981]: containerd: failed to create shim task for container api
+Oct 13 14:23:05 ip-192-0-2-44 containerd[981]: oci runtime error: container failed to start
+Oct 13 14:23:06 ip-192-0-2-44 systemd[1]: api.service: Main process exited, code=killed, status=9/KILL
+Oct 13 14:23:20 ip-192-0-2-44 systemd[1]: failed to start api.service
+Oct 13 14:23:20 ip-192-0-2-44 systemd[1]: api.service: Scheduled restart job, restart counter is at 3.
+Oct 13 14:24:01 ip-192-0-2-44 chronyd[552]: Selected source 192.0.2.1

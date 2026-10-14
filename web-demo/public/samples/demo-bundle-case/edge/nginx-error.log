@@ -1,0 +1,9 @@
+# Synthetic nginx error log — edge.example.com (staging VIP 198.51.100.10)
+2026/10/13 14:18:01 [notice] 11#11: using the "epoll" event method
+2026/10/13 14:18:01 [notice] 11#11: start worker processes
+2026/10/13 14:20:14 [info] 22#22: *1901 client 203.0.113.40 closed keepalive connection
+2026/10/13 14:22:55 [warn] 22#22: *2011 upstream server temporarily disabled while connecting to upstream
+2026/10/13 14:23:06 [error] 22#22: *2102 upstream timed out while reading response header from upstream, client: 203.0.113.55, server: checkout.example.com, request: "POST /v1/checkout HTTP/1.1", upstream: "http://192.0.2.44:8080/v1/checkout"
+2026/10/13 14:23:08 [error] 22#22: *2108 no live upstreams while connecting to upstream, client: 203.0.113.56, server: checkout.example.com, request: "POST /v1/checkout HTTP/1.1"
+2026/10/13 14:23:11 [warn] 22#22: *2114 connection refused to api.internal.example.com:8080
+2026/10/13 14:24:02 [info] 22#22: *2201 client 203.0.113.59 closed keepalive connection

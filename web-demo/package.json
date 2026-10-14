@@ -1,0 +1,22 @@
+{
+  "name": "traceglass-web-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Portable client-side TraceGlass WASM demo (no upload, no install)",
+  "scripts": {
+    "build:wasm": "bash scripts/build-wasm.sh",
+    "dev": "npm run build:wasm && vite",
+    "build": "npm run build:wasm && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "test": "npm run build && playwright test",
+    "test:headed": "npm run build && playwright test --headed",
+    "bench:sizes": "node scripts/bench-sizes.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.10",
+    "vite-plugin-static-copy": "^3.1.2"
+  }
+}

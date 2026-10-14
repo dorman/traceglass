@@ -1,0 +1,19 @@
+# Synthetic checkout-api application log — CASE-2026-1013-8841
+# Host: api-7d9f8c4b2.example.com  Region: lab-us-east-1
+2026-10-13T14:02:01.120Z INFO  boot checkout-api v2.14.3 build=demo+fake sha=0000000
+2026-10-13T14:02:01.340Z INFO  listening on 0.0.0.0:8080 env=staging
+2026-10-13T14:02:01.410Z INFO  metrics exporter ready endpoint=/metrics
+2026-10-13T14:18:44.002Z INFO  request id=req-1001 method=GET path=/healthz status=200 dur_ms=2
+2026-10-13T14:19:02.118Z INFO  request id=req-1044 method=POST path=/v1/checkout status=200 dur_ms=88
+2026-10-13T14:21:17.551Z WARN  request id=req-1802 method=POST path=/v1/checkout status=200 dur_ms=940 queue_wait_ms=410
+2026-10-13T14:22:03.010Z INFO  gc pause_ms=120 heap_used_mb=1480 heap_max_mb=1536
+2026-10-13T14:22:41.774Z WARN  slow handler path=/v1/checkout dur_ms=2100 deps=pricing,inventory
+2026-10-13T14:23:05.002Z ERROR out of memory while building request cache
+2026-10-13T14:23:05.040Z ERROR request id=req-2210 path=/v1/checkout status=500 dur_ms=12
+2026-10-13T14:23:05.088Z ERROR request id=req-2211 path=/v1/checkout status=500 dur_ms=9
+2026-10-13T14:23:05.201Z FATAL unhandled exception in api worker (core dumped)
+2026-10-13T14:23:05.210Z ERROR Traceback (most recent call last):
+2026-10-13T14:23:05.211Z ERROR   File "/opt/checkout-api/worker.py", line 88, in handle
+2026-10-13T14:23:05.212Z ERROR     cache.materialize(cart_id)
+2026-10-13T14:23:05.213Z ERROR MemoryError: unable to allocate 64 MiB arena
+2026-10-13T14:23:06.001Z INFO  supervisor: waiting for worker exit code
