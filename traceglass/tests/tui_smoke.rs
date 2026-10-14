@@ -356,13 +356,18 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
     );
     writer.write_all(b"aERROR\r")?;
     writer.flush()?;
+    // Prefer "to local watchlist: ERROR" over the shared stem
+    // "local watchlist: ERROR" (also appears in the prior remove status) and
+    // over the full "added keyword…" sentence (status paints with cursor hops
+    // that can split "added"). Matching too early lets `s` land while busy()
+    // still drops non-cancel keys.
     assert!(
         wait_for_needle(
             &mut transcript,
             &output_rx,
             &mut writer,
             &mut answered_dsr,
-            "local watchlist: ERROR"
+            "to local watchlist: ERROR"
         ),
         "re-added entry did not finish: {transcript}"
     );
