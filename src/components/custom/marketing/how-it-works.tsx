@@ -12,20 +12,26 @@ const steps = [
     prompt: '$ cat traceglass.toml',
     code: (
       <code className="block">
-        <span className="block text-zinc-500">{'{'}</span>
+        <span className="block" style={{ color: '#737A8C' }}>
+          {'{'}
+        </span>
         <span className="block">
-          <span className="text-zinc-500">{'"keywords"'}</span>
-          <span className="text-zinc-400">: [</span>
+          <span style={{ color: '#737A8C' }}>{'"keywords"'}</span>
+          <span style={{ color: '#D7DAE0' }}>: [</span>
         </span>
         <span className="block pl-4">
-          <span className="text-zinc-500">{'"FATAL"'}</span>
-          <span className="text-zinc-400">, </span>
-          <span className="text-zinc-500">{'"panic"'}</span>
-          <span className="text-zinc-400">, </span>
-          <span className="text-zinc-500">{'"OOMKilled"'}</span>
+          <span style={{ color: '#737A8C' }}>{'"FATAL"'}</span>
+          <span style={{ color: '#D7DAE0' }}>, </span>
+          <span style={{ color: '#737A8C' }}>{'"panic"'}</span>
+          <span style={{ color: '#D7DAE0' }}>, </span>
+          <span style={{ color: '#737A8C' }}>{'"OOMKilled"'}</span>
         </span>
-        <span className="block text-zinc-400">]</span>
-        <span className="block text-zinc-500">{'}'}</span>
+        <span className="block" style={{ color: '#D7DAE0' }}>
+          ]
+        </span>
+        <span className="block" style={{ color: '#737A8C' }}>
+          {'}'}
+        </span>
       </code>
     ),
   },
@@ -37,16 +43,22 @@ const steps = [
     code: (
       <code className="block">
         <span className="block whitespace-pre">
-          <span className="text-zinc-500">I0712 14:01:02 kubelet: </span>
-          <span className="bg-yellow-500/20 font-semibold text-yellow-300">INFO</span>
-          <span className="text-zinc-200"> container started</span>
+          <span style={{ color: '#737A8C' }}>I0712 14:01:02 kubelet: </span>
+          <span className="font-semibold" style={{ color: '#7FA7CF' }}>
+            INFO
+          </span>
+          <span style={{ color: '#D7DAE0' }}> container started</span>
         </span>
         <span className="block whitespace-pre">
-          <span className="text-zinc-500">E0712 14:01:09 kubelet: </span>
-          <span className="bg-orange-500/25 font-semibold text-orange-300">OOMKilled</span>
-          <span className="text-zinc-200"> memory limit 512Mi exceeded</span>
+          <span style={{ color: '#737A8C' }}>E0712 14:01:09 kubelet: </span>
+          <span className="font-semibold" style={{ color: '#E06C75' }}>
+            ERROR
+          </span>
+          <span style={{ color: '#D7DAE0' }}> OOMKilled memory limit 512Mi exceeded</span>
         </span>
-        <span className="block whitespace-pre text-zinc-500">{'... 142 lines ...'}</span>
+        <span className="block whitespace-pre" style={{ color: '#737A8C' }}>
+          {'... 142 lines ...'}
+        </span>
       </code>
     ),
   },
@@ -57,14 +69,16 @@ const steps = [
     prompt: '$ echo $?',
     code: (
       <code className="block">
-        <span className="block whitespace-pre text-zinc-500">
+        <span className="block whitespace-pre" style={{ color: '#737A8C' }}>
           counts: lines=143 critical=1 warnings=2
         </span>
         <span className="block whitespace-pre pt-2">
-          <span className="text-zinc-500">$ </span>
-          <span className="text-zinc-400">echo $?</span>
+          <span style={{ color: '#737A8C' }}>$ </span>
+          <span style={{ color: '#D7DAE0' }}>echo $?</span>
         </span>
-        <span className="block whitespace-pre bg-red-500/15 font-bold text-red-400">1</span>
+        <span className="block whitespace-pre font-bold" style={{ color: '#E06C75' }}>
+          1
+        </span>
       </code>
     ),
   },
@@ -102,7 +116,12 @@ export function HowItWorks() {
                 <CardDescription className="text-sm leading-relaxed">{step.body}</CardDescription>
               </CardHeader>
               <div className="p-3">
-                <Terminal prompt={step.prompt} title="~/.config/traceglass" compact className="text-[11.5px]">
+                <Terminal
+                  prompt={step.prompt}
+                  title="~/.config/traceglass"
+                  compact
+                  className="text-[11.5px]"
+                >
                   {step.code}
                 </Terminal>
               </div>
