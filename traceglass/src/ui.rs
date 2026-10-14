@@ -1091,10 +1091,7 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
         let gutter_fg = if bookmarked {
             t.accent
         } else if is_cursor
-            && matches!(
-                t.depth,
-                theme::ColorDepth::Ansi16 | theme::ColorDepth::Mono
-            )
+            && matches!(t.depth, theme::ColorDepth::Ansi16 | theme::ColorDepth::Mono)
         {
             t.text
         } else {
