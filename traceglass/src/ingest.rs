@@ -417,7 +417,10 @@ mod tests {
             Some("tar.gz")
         );
         assert_eq!(unsupported_archive_kind(Path::new("a.tar")), Some("tar"));
-        assert_eq!(unsupported_archive_kind(Path::new("a.log.gz")), Some("gzip"));
+        assert_eq!(
+            unsupported_archive_kind(Path::new("a.log.gz")),
+            Some("gzip")
+        );
         assert_eq!(unsupported_archive_kind(Path::new("a.log")), None);
 
         let dir = std::env::temp_dir().join(format!(
