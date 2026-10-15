@@ -1,0 +1,40 @@
+ * TraceGlass │ case/app/api.log (1/8) │ lens incident-reliability │ * 2 crit  * 6 high  * 5 med
+
+
+          ┌ Scan findings — 13 (20 hits)   2 crit · 6 high · 5 med  · Incident / Reliability v0.1.0──────────┐
+          │  ==============================================================================================  │
+          │  filter  all 13   CRIT 2   HIGH 6   MED 5  f/F or ←/→                                            │
+          │  HIGH  MySQL storage or concurrency failure  case/db/mysql.log:6                                 │
+          │  HIGH  PostgreSQL connection or transaction failure  ×2  case/db/postgres.log:8                  │
+          │  HIGH  nginx upstream or request failure  ×2  case/edge/nginx-error.log:6                        │
+          │  HIGH  Kubernetes workload restart or image failure  ×4  case/k8s/events.log:8                   │
+          │  HIGH  Container startup or runtime failure  ×2  case/system/journal.log:5                       │
+          │  MED   Connection refused / reset  case/db/postgres.log:10                                       │
+          │  MED   Connection refused / reset  case/edge/nginx-error.log:8                                   │
+          │  CRIT  Fatal error / crash  case/app/api.log:14                                                  │
+          │  CRIT  Fatal error / crash  README.md:30                                                         │
+          │  MED   systemd unit failed to start  case/system/journal.log:8                                   │
+          │  MED   systemd unit failed to start  README.md:38                                                │
+          │  HIGH  Resource exhaustion  case/app/api.log:11                                                  │
+          │  MED   Diagnostic assertion or traceback  ×2  case/app/api.log:14                                │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │ HIGH  mysql  MySQL storage or concurrency failure                                                │
+          │ id: mysql-storage-concurrency-failure · source: builtin · traceglass-rust-builtins/builtin-v1 ·  │
+          │ group: availability-dependency · priority: 10 · pattern: mysql-storage-concurrency-failure       │
+          │ severity rationale: High because storage or lock failures can block writes and cause cascading   │
+          │ database errors.                                                                                 │
+          │ MySQL reports a deadlock, crashed table, unavailable connection capacity, or InnoDB failure.     │
+          │ false-positive note: Expected contention and maintenance operations can produce deadlocks or     │
+          │ capacity errors.                                                                                 │
+          └──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+ NORMAL  scan: 13 findings (20 hits) · 2 crit · 6 high · 5 med                                              Ln 1/19  5%

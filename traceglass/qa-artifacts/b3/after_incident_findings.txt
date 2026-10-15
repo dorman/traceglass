@@ -1,0 +1,40 @@
+ * TraceGlass │ app/api.log (1/7) │ lens incident-reliability │ * 1 crit  * 6 high  * 4 med
+
+
+          ┌ Scan findings — 11 (18 hits)   1 crit · 6 high · 4 med  · Incident / Reliability v0.1.0──────────┐
+          │  ==============================================================================================  │
+          │  filter  all 11   CRIT 1   HIGH 6   MED 4  f/F or ←/→                                            │
+          │  CRIT  Fatal error / crash  app/api.log:14                                                       │
+          │  HIGH  MySQL storage or concurrency failure  db/mysql.log:6                                      │
+          │  HIGH  PostgreSQL connection or transaction failure  ×2  db/postgres.log:8                       │
+          │  HIGH  nginx upstream or request failure  ×2  edge/nginx-error.log:6                             │
+          │  HIGH  Kubernetes workload restart or image failure  ×4  k8s/events.log:8                        │
+          │  HIGH  Container startup or runtime failure  ×2  system/journal.log:5                            │
+          │  HIGH  Resource exhaustion  app/api.log:11                                                       │
+          │  MED   Connection refused / reset  db/postgres.log:10                                            │
+          │  MED   Connection refused / reset  edge/nginx-error.log:8                                        │
+          │  MED   systemd unit failed to start  system/journal.log:8                                        │
+          │  MED   Diagnostic assertion or traceback  ×2  app/api.log:14                                     │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │                                                                                                  │
+          │ CRIT  crash  Fatal error / crash                                                                 │
+          │ id: fatal-error-crash · source: builtin · traceglass-rust-builtins/builtin-v1 · group:           │
+          │ runtime-deployment · priority: 20 · pattern: fatal-error-crash                                   │
+          │ severity rationale: Critical because the affected component may have stopped handling its        │
+          │ workload.                                                                                        │
+          │ A fatal error, crash, or unhandled exception occurred — the component likely stopped             │
+          │ functioning.                                                                                     │
+          │ false-positive note: Expected crash reporting and test failures can emit the same generic        │
+          └──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+ NORMAL  scan: 11 findings (18 hits) · 1 crit · 6 high · 4 med                                              Ln 1/19  5%
