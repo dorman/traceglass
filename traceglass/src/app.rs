@@ -2053,9 +2053,9 @@ impl App {
         // so report both: "3 findings" alone hides that one of them fired 900
         // times, which is usually the most interesting thing on screen.
         let scale = if hits > total {
-            format!("{total} findings ({hits} hits)")
+            format!("{total} grouped findings ({hits} line hits)")
         } else {
-            format!("{total} findings")
+            format!("{total} grouped findings")
         };
         // The tally lists only reportable severities; spelling all five out left a
         // permanent "0 low, 0 info" here the way it used to in the panel title.
@@ -3529,6 +3529,113 @@ mod tests {
         assert!(
             counts[Severity::High as usize] + counts[Severity::Critical as usize] > 0,
             "sample.log should yield high/critical findings"
+        );
+    }
+
+    /// Pins the documented TUI↔`--findings` relationship (QA B2 option A):
+    /// TUI groups by `(file, signature)` and keeps every Medium+ match; JSON
+    /// keeps one strongest signature per source line.
+    #[test]
+    fn tui_grouped_findings_differ_from_per_line_strongest_json_view() {
+        use crate::records::normalize_with_lens;
+
+        // sample.log line 15 matches both clock-rollback (High) and
+        // installer-rollback (Medium). TUI keeps both groups; JSON keeps High.
+        let mut app = app_with_paths(&["samples/sample.log"]);
+        run_scan_to_completion(&mut app);
+        let tui_ids: std::collections::BTreeSet<&str> = app
+            .findings
+            .iter()
+            .map(|f| app.signatures[f.sig].id)
+            .collect();
+        assert!(
+            tui_ids.contains("system-clock-rollback"),
+            "TUI must list High clock rollback"
+        );
+        assert!(
+            tui_ids.contains("installer-rollback"),
+            "TUI keeps Medium installer-rollback even when a stronger signature shares the line"
+        );
+
+        let content = fs::read_to_string("samples/sample.log").unwrap();
+        let input = normalize_with_lens("sample.log", None, &content, &app.signatures, &app.lens);
+        let json_rows: Vec<_> = input
+            .records
+            .iter()
+            .filter_map(|r| {
+                r.finding
+                    .as_ref()
+                    .map(|f| (r.line, f.id.as_str(), r.severity.as_str()))
+            })
+            .collect();
+        let line15 = json_rows
+            .iter()
+            .find(|(line, _, _)| *line == 15)
+            .expect("JSON view must annotate line 15");
+        assert_eq!(line15.1, "system-clock-rollback");
+        assert_eq!(line15.2, "high");
+        assert!(
+            !json_rows
+                .iter()
+                .any(|(_, id, _)| *id == "installer-rollback"),
+            "JSON strongest-per-line view drops Medium installer-rollback on line 15"
+        );
+        assert!(
+            app.findings.len() > json_rows.len(),
+            "grouped TUI rows ({}) must exceed per-line JSON rows ({}) on sample.log",
+            app.findings.len(),
+            json_rows.len()
+        );
+
+        // demo-bundle/case: same relationship without README.md noise.
+        let mut demo = app_with_paths(&["samples/demo-bundle/case"]);
+        run_scan_to_completion(&mut demo);
+        let mut json_count = 0usize;
+        for file in &demo.files {
+            let text = fs::read_to_string(&file.path).unwrap();
+            let name = file
+                .path
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| file.path.display().to_string());
+            let input = normalize_with_lens(&name, None, &text, &demo.signatures, &demo.lens);
+            json_count += input.records.iter().filter(|r| r.finding.is_some()).count();
+        }
+        assert!(
+            demo.findings.len() != json_count || demo.occurrence_count() >= json_count,
+            "demo-bundle TUI grouped={} hits={} vs JSON per-line={}",
+            demo.findings.len(),
+            demo.occurrence_count(),
+            json_count
+        );
+        // postgres.log:10 is High postgresql in JSON; TUI also surfaces Medium
+        // connection-refused for that line as its own group.
+        let pg = demo
+            .files
+            .iter()
+            .position(|f| f.path.to_string_lossy().contains("postgres.log"))
+            .expect("postgres.log tab");
+        let pg_text = fs::read_to_string(&demo.files[pg].path).unwrap();
+        let pg_json =
+            normalize_with_lens("postgres.log", None, &pg_text, &demo.signatures, &demo.lens);
+        let pg10 = pg_json
+            .records
+            .iter()
+            .find(|r| r.line == 10 && r.finding.is_some())
+            .expect("JSON annotates postgres.log:10");
+        assert_eq!(pg10.severity, "high");
+        assert_eq!(
+            pg10.finding.as_ref().unwrap().id,
+            "postgresql-connection-transaction-failure"
+        );
+        assert!(
+            demo.findings.iter().any(|f| {
+                f.file == pg
+                    && demo.signatures[f.sig].id == "connection-refused-reset"
+                    && f.line <= 9
+                    && f.last >= 9
+            }),
+            "TUI must keep Medium connection-refused group covering postgres.log:10 (0-based line 9)"
         );
     }
 

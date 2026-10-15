@@ -143,6 +143,16 @@ evidence annotation only: severity and lens priority are deterministic source
 metadata, not AI confidence, a root-cause verdict, or a clean/infected or
 security verdict.
 
+**TUI vs `--findings` counts are intentionally different views of the same
+scan.** The interactive findings panel **groups** Medium+ signature hits by
+`(file, signature)` and shows an occurrence count (`N grouped (M line hits)`),
+and it keeps **every** matching Medium+ signature on a line. `--findings` JSON
+keeps **one record per source line**, choosing the **strongest** signature when
+several match (for example `postgres.log:10` is High
+`postgresql-connection-transaction-failure` in JSON, while the TUI may also list
+a separate Medium `connection-refused-reset` row for that line). Use the TUI for
+triage grouping; use `--findings` for stable per-line evidence export.
+
 ### Versioned analysis lenses
 
 The default `general-triage` lens orders recognized evidence by severity and
