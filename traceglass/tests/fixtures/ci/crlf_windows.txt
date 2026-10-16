@@ -1,0 +1,7 @@
+2026-10-16T12:40:00.0000000Z ##[group]Run msbuild
+2026-10-16T12:40:01.0000000Z ##[command]msbuild SynthApp.sln /p:Configuration=Release
+2026-10-16T12:40:02.0000000Z   SynthApp -> D:\a\synth-app\synth-app\bin\Release\SynthApp.exe
+2026-10-16T12:40:03.0000000Z error: CS0103: The name 'MissingToken' does not exist in the current context
+2026-10-16T12:40:04.0000000Z ##[error]D:\a\synth-app\synth-app\Program.cs(12,5): error CS0103
+2026-10-16T12:40:05.0000000Z Process completed with exit code 1.
+2026-10-16T12:40:06.0000000Z ##[endgroup]

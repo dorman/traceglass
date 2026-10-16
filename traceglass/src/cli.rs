@@ -101,6 +101,11 @@ pub struct Cli {
     #[arg(long = "no-scan")]
     pub no_scan: bool,
 
+    /// CI / build-log triage: prefer GitHub Actions job logs in zips, and arm
+    /// first-error-candidate jump (`E` in the TUI). Fully local; no network.
+    #[arg(long = "ci")]
+    pub ci: bool,
+
     /// Non-interactive output format. Explicit formats are safe for scripts and CI.
     #[arg(long, value_enum)]
     pub format: Option<OutputFormat>,

@@ -17,18 +17,19 @@ This guide covers everything. For a 2-minute intro, see the
 
 1. [Installation](#installation)
 2. [Opening logs](#opening-logs)
-3. [First-run walkthrough](#first-run-walkthrough)
-4. [The viewer](#the-viewer)
-5. [Scan: automatic triage](#scan-automatic-triage)
-6. [Highlights](#highlights)
-7. [Watchlist workspace](#watchlist-workspace)
-8. [Search & filter](#search--filter)
-9. [Settings](#settings)
-10. [Mouse reference](#mouse-reference)
-11. [Keybinding reference](#keybinding-reference)
-12. [Command-line reference](#command-line-reference)
-13. [Limits & safety](#limits--safety)
-14. [Troubleshooting](#troubleshooting)
+3. [CI / build-log triage](#ci--build-log-triage)
+4. [First-run walkthrough](#first-run-walkthrough)
+5. [The viewer](#the-viewer)
+6. [Scan: automatic triage](#scan-automatic-triage)
+7. [Highlights](#highlights)
+8. [Watchlist workspace](#watchlist-workspace)
+9. [Search & filter](#search--filter)
+10. [Settings](#settings)
+11. [Mouse reference](#mouse-reference)
+12. [Keybinding reference](#keybinding-reference)
+13. [Command-line reference](#command-line-reference)
+14. [Limits & safety](#limits--safety)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -172,6 +173,42 @@ You can also click an entry to select it, and wheel-scroll the list.
 - click a tab — switch to that file
 - `w` — close the current file
 - `o` — reopen the browser to add more
+
+## CI / build-log triage
+
+`--ci` opens a GitHub Actions log (or a downloaded workflow zip) in the same
+viewer with a first-error-candidate jump. Everything stays fully local: no
+network, no token, and no change to the `traceglass.findings.v1` schema.
+
+```sh
+traceglass --ci path/to/job.txt
+traceglass --ci path/to/workflow-logs.zip
+```
+
+**What it does**
+
+- Strips an optional UTF-8 BOM and a leading `2026-10-16T12:34:56.1234567Z `
+  timestamp prefix **for matching only**. Original line text and line numbers
+  stay intact for display.
+- Splits the log into steps with `##[group]` / `##[endgroup]` (nested or
+  unclosed groups do not panic).
+- Ranks a **first error candidate** worth checking first: `##[error]`, then a
+  step that ended non-zero, then built-in signature findings, then generic
+  `error:` / `FAILED` lines. Lines like `0 errors` or "error" inside a package
+  name are not candidates.
+- Press `E` to jump to that candidate (with a short evidence status). The next
+  few alternates are counted in the status so you can keep looking.
+- For GitHub Actions zips, prefers root-level `N_<job>.txt` job logs, skips
+  per-step subfolder files, orders tabs by the numeric prefix (`10_` after
+  `2_`), and names tabs by job name. Existing caps still apply (2,000 files,
+  500 tabs, 250k lines per file).
+
+Evidence annotations only; not AI confidence and not a root-cause verdict.
+Reuse each signature's false-positive note when a built-in finding is the
+candidate.
+
+Folding of repeated setup noise, baseline compare, and CI summary export are
+not in this release.
 
 ## First-run walkthrough
 
@@ -503,8 +540,8 @@ top/bottom · `:` go to line · `m` bookmark · `M` clear bookmarks ·
 `w` close file · `y` copy cursor line · `Y` copy file path · `q` quit
 
 **Scan** — `S` scan · `s` reopen findings · `p`/`P` next/prev finding (wraps) ·
-`e` export markdown · in panel: `j`/`k` move, `Enter` jump, `e` export,
-`,` settings, `?` help, `q`/`Esc` close
+`E` first error candidate (CI triage) · `e` export markdown · in panel: `j`/`k`
+move, `Enter` jump, `e` export, `,` settings, `?` help, `q`/`Esc` close
 
 **Search & filter** — `/` search · `f` filter · `Enter` first match ·
 `n`/`N` walk matches (wraps) · `c` clear search+filter · `Esc` clear search →
@@ -534,7 +571,9 @@ traceglass [OPTIONS] [FILES]...
 | `-r, --regex <PATTERN>` | regex highlight for this run; repeatable |
 | `-i, --ignore-case` | case-insensitive matching for all rules (this session; also OR'd with the saved `i` preference) |
 | `--no-scan` | don't scan on open; press `S` when you want it |
+| `--ci` | CI / build-log triage: prefer GitHub Actions job logs in zips; press `E` for the first error candidate |
 | `--format <raw\|json\|csv>` | force non-interactive output with stable raw/JSON/CSV contracts |
+| `--findings <PATH>` | write matched built-in findings as `traceglass.findings.v1` JSON |
 | `--lens <id>` | select `general-triage` (default), `incident-reliability`, or `security-signals` |
 | `--walkthrough` | replay the interactive walkthrough; machine modes stay non-interactive |
 | `--stdin` | read stdin explicitly, even when it is a terminal |

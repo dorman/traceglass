@@ -415,6 +415,7 @@ fn handle_viewer(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
             KeyCode::Char('P') => app.prev_finding(),
             KeyCode::Enter => app.findings_jump(),
             KeyCode::Char('e') => app.export_findings(),
+            KeyCode::Char('E') => app.jump_first_error_candidate(),
             KeyCode::Char('L') => app.open_lens_chooser(),
             KeyCode::Char('T') => app.replay_walkthrough(),
             // Both overlays are checked before this one, so they layer on top
@@ -477,6 +478,7 @@ fn handle_viewer(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
         KeyCode::Char('p') => app.next_finding(),
         KeyCode::Char('P') => app.prev_finding(),
         KeyCode::Char('e') => app.export_findings(),
+        KeyCode::Char('E') => app.jump_first_error_candidate(),
         // Go to absolute line number (1-based), like less/vim.
         KeyCode::Char(':') => {
             if app.has_files() {
@@ -779,6 +781,38 @@ mod tests {
         );
         // Clean up default cwd export if the keybinding wrote it.
         let _ = std::fs::remove_file("traceglass-findings.md");
+    }
+
+    #[test]
+    fn e_key_jumps_to_first_error_candidate() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/ci/single_failing_step.txt");
+        let mut app = App::new_with_lens_and_ci(
+            &[path.to_string_lossy().into()],
+            Vec::new(),
+            false,
+            crate::lenses::Selection::default().unwrap(),
+            true,
+        )
+        .unwrap();
+        assert!(app.ci_mode);
+        handle_viewer(&mut app, KeyCode::Char('E'), KeyModifiers::NONE);
+        let status = app.status.as_deref().unwrap_or("");
+        assert!(
+            status.contains("first error candidate"),
+            "unexpected status: {status:?}"
+        );
+        assert!(
+            status.contains("##[error]") || status.contains("worth checking"),
+            "unexpected status: {status:?}"
+        );
+        // Cursor should sit on the ##[error] line (0-based index into lines).
+        let line = app.file().view[app.file().view_pos];
+        assert!(
+            app.file().lines[line].contains("##[error]"),
+            "landed on {:?}",
+            app.file().lines[line]
+        );
     }
 
     #[test]

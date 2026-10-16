@@ -52,7 +52,12 @@ fn read_machine_sources(cli: &Cli) -> Result<Vec<output::SourceText>> {
             continue;
         }
         let outcome = ingest::resolve(path)?;
-        for target in &outcome.targets {
+        let targets = if cli.ci {
+            ingest::prefer_ci_job_logs(outcome.targets)
+        } else {
+            outcome.targets
+        };
+        for target in &targets {
             let content = ingest::read_text(&target.path);
             if let Some(temp_dir) = &outcome.temp_dir {
                 // Remove extracted data as soon as its contents are read; the
@@ -122,7 +127,7 @@ fn main() -> Result<()> {
         }
     };
     let lens = selected_lens(&cli);
-    let mut app = App::new_with_lens(&cli.files, rules, ignore_case, lens)?;
+    let mut app = App::new_with_lens_and_ci(&cli.files, rules, ignore_case, lens, cli.ci)?;
     app.theme = theme;
     if explicit_cli_rules {
         // CLI rules win for this run; expose that the workspace can be saved

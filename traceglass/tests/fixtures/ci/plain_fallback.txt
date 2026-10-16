@@ -1,0 +1,6 @@
+Building project SynthApp
+Compiling module core
+Compiling module net
+error: link failed: unresolved external symbol _main
+Build FAILED
+Done.
