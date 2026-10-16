@@ -1,0 +1,28 @@
+2026-10-16T12:20:00.0000000Z ##[group]Set up job
+2026-10-16T12:20:01.0000000Z Download action repository 'actions/checkout@v4'
+2026-10-16T12:20:02.0000000Z Download action repository 'actions/cache@v4'
+2026-10-16T12:20:03.0000000Z ##[endgroup]
+2026-10-16T12:20:04.0000000Z ##[group]Run actions/checkout@v4
+2026-10-16T12:20:05.0000000Z ##[command]git lfs fetch origin
+2026-10-16T12:20:06.0000000Z Fetching objects... done
+2026-10-16T12:20:07.0000000Z ##[endgroup]
+2026-10-16T12:20:08.0000000Z ##[group]Run actions/cache@v4
+2026-10-16T12:20:09.0000000Z Cache hit for: cargo-linux-abc123
+2026-10-16T12:20:10.0000000Z Received 1048576 of 1048576 (100.0%), 12.0 MBs/sec
+2026-10-16T12:20:11.0000000Z Cache restored successfully
+2026-10-16T12:20:12.0000000Z ##[endgroup]
+2026-10-16T12:20:13.0000000Z ##[group]Run npm ci
+2026-10-16T12:20:14.0000000Z ##[command]npm ci
+2026-10-16T12:20:15.0000000Z npm warn deprecated old-pkg@1.0.0: use new-pkg
+2026-10-16T12:20:16.0000000Z added 412 packages in 18s
+2026-10-16T12:20:17.0000000Z Process completed with exit code 0.
+2026-10-16T12:20:18.0000000Z ##[endgroup]
+2026-10-16T12:20:19.0000000Z ##[group]Run npm test
+2026-10-16T12:20:20.0000000Z ##[command]npm test -- --runInBand
+2026-10-16T12:20:21.0000000Z PASS src/ok.test.js
+2026-10-16T12:20:22.0000000Z FAIL src/billing.test.js
+2026-10-16T12:20:23.0000000Z   ● billing › rejects expired card
+2026-10-16T12:20:24.0000000Z     expect(received).toBe(expected)
+2026-10-16T12:20:25.0000000Z ##[error]Test suite failed to run
+2026-10-16T12:20:26.0000000Z Process completed with exit code 1.
+2026-10-16T12:20:27.0000000Z ##[endgroup]

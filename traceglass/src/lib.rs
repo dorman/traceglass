@@ -4,6 +4,7 @@
 //! exposes the in-memory signature scanner used by the browser demo: no
 //! filesystem walks, no TUI, and zip handling is in-memory only (no temp dirs).
 
+pub mod ci;
 pub mod lenses;
 pub mod records;
 pub mod rules;

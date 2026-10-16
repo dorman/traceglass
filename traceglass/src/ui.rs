@@ -2231,6 +2231,10 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 "choose lens (cached findings are re-ranked, watchlist unchanged)",
             ),
             ("p / P", "next / previous finding (wraps; no panel)"),
+            (
+                "E",
+                "jump to first error candidate (CI triage; evidence only)",
+            ),
             ("e", "export findings (never overwrites an export)"),
             ("(in panel)", "j/k move · f/F or ←/→ severity filter"),
             ("", "Enter jump · e export · , settings · ? help · q close"),

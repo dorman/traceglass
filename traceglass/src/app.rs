@@ -568,6 +568,10 @@ pub struct App {
     pub theme: Theme,
     /// Temp directories created while extracting zip bundles; removed on Drop.
     temp_dirs: Vec<PathBuf>,
+    /// `--ci` triage: prefer GitHub Actions job logs and arm first-error jump.
+    pub ci_mode: bool,
+    /// Ranked first-error candidates for the current file (CI triage).
+    pub ci_candidates: Vec<crate::ci::ErrorCandidate>,
 }
 
 impl Drop for App {
@@ -591,6 +595,16 @@ impl App {
         rules: Vec<Rule>,
         ignore_case: bool,
         lens: Selection,
+    ) -> Result<Self> {
+        Self::new_with_lens_and_ci(inputs, rules, ignore_case, lens, false)
+    }
+
+    pub fn new_with_lens_and_ci(
+        inputs: &[String],
+        rules: Vec<Rule>,
+        ignore_case: bool,
+        lens: Selection,
+        ci_mode: bool,
     ) -> Result<Self> {
         let start_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
         let watchlist = Watchlist::from_rules(&rules);
@@ -641,6 +655,8 @@ impl App {
             browser_cwd_hint: None,
             theme: Theme::dark(),
             temp_dirs: Vec::new(),
+            ci_mode,
+            ci_candidates: Vec::new(),
         };
 
         let paths: Vec<PathBuf> = inputs.iter().map(PathBuf::from).collect();
@@ -656,6 +672,13 @@ impl App {
         // Only clear status for a bare welcome launch so the banner stays clean.
         if !had_inputs {
             app.status = None;
+        } else if ci_mode {
+            app.refresh_ci_candidates();
+            if let Some(base) = app.status.take() {
+                app.status = Some(format!(
+                    "{base} · CI triage · press E for first error candidate"
+                ));
+            }
         }
         Ok(app)
     }
@@ -685,7 +708,12 @@ impl App {
                     if let Some(dir) = outcome.temp_dir {
                         self.temp_dirs.push(dir);
                     }
-                    targets.extend(outcome.targets);
+                    let resolved = if self.ci_mode {
+                        ingest::prefer_ci_job_logs(outcome.targets)
+                    } else {
+                        outcome.targets
+                    };
+                    targets.extend(resolved);
                 }
                 Err(e) => errors.push(format!("{e}")),
             }
@@ -747,6 +775,9 @@ impl App {
         // report whole rather than reporting on a subset.
         if self.auto_scan && opened > 0 {
             self.scan_after_open();
+        }
+        if self.ci_mode && opened > 0 {
+            self.refresh_ci_candidates();
         }
     }
 
@@ -2400,6 +2431,44 @@ impl App {
         self.clamp_scroll();
     }
 
+    /// Recompute first-error candidates for the current tab (CI triage).
+    pub fn refresh_ci_candidates(&mut self) {
+        self.ci_candidates.clear();
+        if !self.has_files() {
+            return;
+        }
+        let text = self.file().lines.join("\n");
+        self.ci_candidates = crate::ci::first_error_candidates(&text, &self.signatures);
+    }
+
+    /// Jump to the first error candidate worth checking first (`E`).
+    ///
+    /// Evidence only: the earliest high-rank annotation / non-zero step /
+    /// signature / generic error line, not a root-cause verdict.
+    pub fn jump_first_error_candidate(&mut self) {
+        if !self.has_files() {
+            self.status = Some("open a file before jumping to a first error candidate".into());
+            return;
+        }
+        self.refresh_ci_candidates();
+        let Some(primary) = self.ci_candidates.first().cloned() else {
+            self.status = Some("no first error candidate in this file".into());
+            return;
+        };
+        self.show_findings = false;
+        let file = self.current;
+        self.jump_to_line(file, primary.line_index);
+        let step = primary.step_name.as_deref().unwrap_or("(no step group)");
+        let alts = self.ci_candidates.len().saturating_sub(1);
+        self.status = Some(format!(
+            "first error candidate · {} · {} · line {} · {} more worth checking first",
+            primary.rank.label(),
+            step,
+            primary.line_index + 1,
+            alts
+        ));
+    }
+
     pub fn close_findings(&mut self) {
         self.show_findings = false;
     }
@@ -2569,12 +2638,18 @@ impl App {
     pub fn next_file(&mut self) {
         if self.files.len() > 1 {
             self.current = (self.current + 1) % self.files.len();
+            if self.ci_mode {
+                self.refresh_ci_candidates();
+            }
         }
     }
 
     pub fn prev_file(&mut self) {
         if self.files.len() > 1 {
             self.current = (self.current + self.files.len() - 1) % self.files.len();
+            if self.ci_mode {
+                self.refresh_ci_candidates();
+            }
         }
     }
 
@@ -2582,6 +2657,9 @@ impl App {
     pub fn select_file(&mut self, index: usize) {
         if index < self.files.len() {
             self.current = index;
+            if self.ci_mode {
+                self.refresh_ci_candidates();
+            }
         }
     }
 
