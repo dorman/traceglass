@@ -2,7 +2,7 @@
 name = "traceglass-installer"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Verified current-user installer for TraceGlass release artifacts"
 license = "MIT"
 repository = "https://github.com/dorman/traceglass"

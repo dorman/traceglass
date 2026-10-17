@@ -34,7 +34,7 @@ manifest signatures and `SHA256SUMS` prove publisher integrity. See
 [`RELEASING.md`](./RELEASING.md) for the signing secret, rc tag, and smoke test.
 
 Until the beta artifacts are published, the technical fallback is a source
-build with Rust 1.85 or newer:
+build with Rust 1.88 or newer:
 
 ```sh
 git clone https://github.com/dorman/traceglass.git

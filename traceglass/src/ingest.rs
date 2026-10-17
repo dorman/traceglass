@@ -73,6 +73,13 @@ pub fn resolve(input: &Path) -> Result<ResolveOutcome> {
     if is_zip(input) {
         return extract_zip(input);
     }
+    if let Some(kind) = unsupported_archive_kind(input) {
+        anyhow::bail!(
+            "'{}' looks like a {} archive; TraceGlass opens .zip bundles and plain log files only",
+            input.display(),
+            kind
+        );
+    }
     if input.is_file() {
         let name = file_name(input);
         return Ok(ResolveOutcome {
@@ -96,6 +103,23 @@ pub fn is_zip(path: &Path) -> bool {
     path.extension()
         .map(|e| e.eq_ignore_ascii_case("zip"))
         .unwrap_or(false)
+}
+
+/// Extensions we refuse to open as plain text (would dump binary garbage).
+fn unsupported_archive_kind(path: &Path) -> Option<&'static str> {
+    let name = path
+        .file_name()
+        .map(|s| s.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
+        Some("tar.gz")
+    } else if name.ends_with(".tar") {
+        Some("tar")
+    } else if name.ends_with(".gz") {
+        Some("gzip")
+    } else {
+        None
+    }
 }
 
 /// Recursively gather likely-text log files under `dir`. `base` is used to build
@@ -388,6 +412,44 @@ mod tests {
         assert!(is_zip(Path::new("bundle.ZIP")));
         assert!(is_zip(Path::new("a.zip")));
         assert!(!is_zip(Path::new("a.log")));
+    }
+
+    #[test]
+    fn unsupported_archives_are_rejected_with_clear_error() {
+        assert_eq!(
+            unsupported_archive_kind(Path::new("support-bundle.tar.gz")),
+            Some("tar.gz")
+        );
+        assert_eq!(
+            unsupported_archive_kind(Path::new("logs.tgz")),
+            Some("tar.gz")
+        );
+        assert_eq!(unsupported_archive_kind(Path::new("a.tar")), Some("tar"));
+        assert_eq!(
+            unsupported_archive_kind(Path::new("a.log.gz")),
+            Some("gzip")
+        );
+        assert_eq!(unsupported_archive_kind(Path::new("a.log")), None);
+
+        let dir = std::env::temp_dir().join(format!(
+            "tg-targz-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("bundle.tar.gz");
+        fs::write(&path, b"\x1f\x8b not really gzip but extension matters\n").unwrap();
+        let err = match resolve(&path) {
+            Ok(_) => panic!("expected tar.gz resolve to fail"),
+            Err(e) => e.to_string(),
+        };
+        assert!(
+            err.contains("tar.gz") && err.contains(".zip"),
+            "unexpected error: {err}"
+        );
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
