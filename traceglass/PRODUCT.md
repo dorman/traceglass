@@ -113,7 +113,7 @@ findings that explain themselves. (Current shape, for reference: `Medium`
 through `Critical` only, with no catch-all `ERROR` / `WARN` rule, so a scan
 result means something.)
 
-**Technical constraints:** Rust, edition 2024, requires 1.85+; `ratatui` /
+**Technical constraints:** Rust, edition 2024, requires 1.88+; `ratatui` /
 `crossterm`; dark palette only, no theme cycling. Resource caps exist because
 bundles are untrusted input — 50 MiB per log, 250k lines per file, 1M lines
 total, 500 open files, 64 highlight rules, 10k findings, and zip extract

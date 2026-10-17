@@ -24,7 +24,18 @@ fn key_is_actionable(kind: KeyEventKind) -> bool {
     matches!(kind, KeyEventKind::Press | KeyEventKind::Repeat)
 }
 
+fn is_ctrl_c(key: KeyEvent) -> bool {
+    key.modifiers.contains(KeyModifiers::CONTROL)
+        && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+}
+
 fn dispatch_key(app: &mut App, key: KeyEvent) {
+    // Raw mode turns Ctrl-C into a key event instead of SIGINT; quit so the
+    // terminal is restored the same way as `q`.
+    if is_ctrl_c(key) {
+        app.should_quit = true;
+        return;
+    }
     // Overlays own the keyboard wherever they are open, so they are checked
     // before the mode routing rather than inside one mode's handler.
     //
@@ -86,15 +97,21 @@ pub fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
                 timeout = Duration::ZERO;
                 if let Event::Key(key) = event::read()?
                     && key_is_actionable(key.kind)
-                    && (app.walkthrough_active()
-                        || matches!(key.code, KeyCode::Esc | KeyCode::Char('q')))
                 {
-                    if app.walkthrough_active() {
-                        dispatch_key(app, key);
-                    } else if app.scanning() {
-                        app.cancel_scan();
-                    } else {
-                        app.cancel_rescan();
+                    if is_ctrl_c(key) {
+                        app.should_quit = true;
+                        break;
+                    }
+                    if app.walkthrough_active()
+                        || matches!(key.code, KeyCode::Esc | KeyCode::Char('q'))
+                    {
+                        if app.walkthrough_active() {
+                            dispatch_key(app, key);
+                        } else if app.scanning() {
+                            app.cancel_scan();
+                        } else {
+                            app.cancel_rescan();
+                        }
                     }
                 }
             }
@@ -1021,6 +1038,28 @@ mod tests {
         key(&mut app, 'q');
         assert!(!app.show_help);
         assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn ctrl_c_quits_from_viewer_and_overlays() {
+        let mut app = app_with_sample();
+        dispatch_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
+        );
+        assert!(app.should_quit);
+
+        let mut app = app_with_sample();
+        dispatch_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE),
+        );
+        assert!(app.show_help);
+        dispatch_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
+        );
+        assert!(app.should_quit);
     }
 
     #[test]
