@@ -66,7 +66,7 @@ payload, macOS Intel with `traceglass-installer-x86_64-apple-darwin` and a
 
 ### Technical source fallback
 
-Requires Rust **1.85+** (`edition = "2024"`):
+Requires Rust **1.88+** (`edition = "2024"`):
 
 ```sh
 git clone https://github.com/dorman/traceglass.git

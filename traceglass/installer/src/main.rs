@@ -44,10 +44,10 @@ fn run(args: Args) -> anyhow::Result<()> {
     if target == "unsupported" {
         anyhow::bail!("this installer build does not support the current OS/architecture");
     }
-    if let Some(tag) = args.tag.as_deref() {
-        if !is_valid_release_tag(tag) {
-            anyhow::bail!("invalid release tag {tag}; expected v0.1.0 or v0.1.0-rc.1");
-        }
+    if let Some(tag) = args.tag.as_deref()
+        && !is_valid_release_tag(tag)
+    {
+        anyhow::bail!("invalid release tag {tag}; expected v0.1.0 or v0.1.0-rc.1");
     }
     let (manifest_url, manifest_signature_url) = manifest_urls_for_tag(args.tag.as_deref());
     let client = reqwest::blocking::Client::builder()
@@ -59,13 +59,13 @@ fn run(args: Args) -> anyhow::Result<()> {
     let key = public_key()?;
     verify_signature(&manifest_bytes, &manifest_signature, &key)?;
     let manifest = validate_manifest(&manifest_bytes)?;
-    if let Some(tag) = args.tag.as_deref() {
-        if manifest.version != tag {
-            anyhow::bail!(
-                "manifest version {} does not match requested tag {tag}",
-                manifest.version
-            );
-        }
+    if let Some(tag) = args.tag.as_deref()
+        && manifest.version != tag
+    {
+        anyhow::bail!(
+            "manifest version {} does not match requested tag {tag}",
+            manifest.version
+        );
     }
     let release = find_target(&manifest, target)?;
 

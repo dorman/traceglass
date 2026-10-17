@@ -46,7 +46,7 @@ The release pairs are Linux glibc x86_64 (`traceglass-installer-x86_64-unknown-l
 
 ### Technical source fallback
 
-Until signed beta artifacts are published, or for contributors, use Rust 1.85
+Until signed beta artifacts are published, or for contributors, use Rust 1.88
 or newer and build from a clone:
 
 ```sh
