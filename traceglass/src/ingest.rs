@@ -569,10 +569,10 @@ mod tests {
         let mut found_symlink = false;
         if let Ok(entries) = fs::read_dir(&temp) {
             for entry in entries.flatten() {
-                if let Ok(ft) = entry.file_type() {
-                    if ft.is_symlink() {
-                        found_symlink = true;
-                    }
+                if let Ok(ft) = entry.file_type()
+                    && ft.is_symlink()
+                {
+                    found_symlink = true;
                 }
             }
         }
