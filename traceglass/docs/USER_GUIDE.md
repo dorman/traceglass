@@ -190,12 +190,16 @@ traceglass --ci path/to/workflow-logs.zip
 - Strips an optional UTF-8 BOM and a leading `2026-10-16T12:34:56.1234567Z `
   timestamp prefix **for matching only**. Original line text and line numbers
   stay intact for display.
-- Splits the log into steps with `##[group]` / `##[endgroup]` (nested or
-  unclosed groups do not panic).
-- Ranks a **first error candidate** worth checking first: `##[error]`, then a
-  step that ended non-zero, then built-in signature findings, then generic
-  `error:` / `FAILED` lines. Lines like `0 errors` or "error" inside a package
-  name are not candidates.
+- Splits the log into logical steps from each `##[group]Run …` / step-boundary
+  header through following output (including after `##[endgroup]`, the common
+  real-log shape). Nested/unclosed groups are safe; older in-group output still
+  parses.
+- Ranks a **first error candidate**: compiler/tool `error:` / `error[E0xxx]:`,
+  then test-runner (`FAIL <path>`, `●`, `Test Suites: N failed`), then
+  `##[error]`, signatures, generic `FAILED`, then the non-zero exit line.
+  Prefer the first failing step unless optional-step evidence
+  (`continue-on-error` or a later `Run` after non-zero) points later — both
+  stay as candidates. `0 errors` / package-name “error” are not candidates.
 - Press `E` to jump to that candidate (with a short evidence status). The next
   few alternates are counted in the status so you can keep looking.
 - For GitHub Actions zips, prefers root-level `N_<job>.txt` job logs, skips

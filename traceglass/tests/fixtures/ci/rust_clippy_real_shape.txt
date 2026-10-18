@@ -1,0 +1,22 @@
+2026-10-17T09:00:00.0000000Z ##[group]Set up job
+2026-10-17T09:00:01.0000000Z Runner name: synth-runner-clippy
+2026-10-17T09:00:02.0000000Z ##[endgroup]
+2026-10-17T09:00:03.0000000Z ##[group]Run cargo clippy --locked -- -D warnings
+2026-10-17T09:00:04.0000000Z [36;1mcargo clippy --locked -- -D warnings[0m
+2026-10-17T09:00:05.0000000Z shell: /usr/bin/bash -e {0}
+2026-10-17T09:00:06.0000000Z ##[endgroup]
+2026-10-17T09:00:07.0000000Z     Checking cfg-if v1.0.0
+2026-10-17T09:00:08.0000000Z     Checking libc v0.2.155
+2026-10-17T09:00:09.0000000Z     Checking syn v2.0.68
+2026-10-17T09:00:10.0000000Z     Checking serde v1.0.203
+2026-10-17T09:00:11.0000000Z     Checking synth-app v0.1.0 (/home/runner/work/synth-app/synth-app)
+2026-10-17T09:00:12.0000000Z error: unneeded return statement
+2026-10-17T09:00:13.0000000Z ##[error]  --> src/foo.rs:12:5
+2026-10-17T09:00:14.0000000Z    |
+2026-10-17T09:00:15.0000000Z 12 |     return value;
+2026-10-17T09:00:16.0000000Z    |     ^^^^^^^^^^^^^
+2026-10-17T09:00:17.0000000Z ##[error]Process completed with exit code 101.
+2026-10-17T09:00:18.0000000Z Process completed with exit code 101.
+2026-10-17T09:00:19.0000000Z ##[group]Complete job
+2026-10-17T09:00:20.0000000Z Cleaning up orphan processes
+2026-10-17T09:00:21.0000000Z ##[endgroup]
