@@ -175,6 +175,14 @@ fn collect_inner(dir: &Path, base: &Path, depth: usize, out: &mut Vec<LoadTarget
 /// Heuristic: reject files that are too big or that contain a NUL byte in their
 /// first chunk (a reliable signal the file is binary, not a text log).
 fn looks_like_text(path: &Path) -> bool {
+    // Markdown/docs inside support bundles (README.md, …) are not diagnostic
+    // logs; scanning them produces false findings from example crash text.
+    if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("md"))
+    {
+        return false;
+    }
     let meta = match fs::metadata(path) {
         Ok(m) => m,
         Err(_) => return false,
@@ -603,6 +611,13 @@ mod tests {
         let ok = dir.join("ok.log");
         fs::write(&ok, b"hello\n").unwrap();
         assert!(looks_like_text(&ok));
+
+        let readme = dir.join("README.md");
+        fs::write(&readme, b"# demo\nFATAL crash example\n").unwrap();
+        assert!(
+            !looks_like_text(&readme),
+            "Markdown docs must not be collected as logs"
+        );
 
         // Sparse file: set length above the cap without writing 50MB of data.
         let huge = dir.join("huge.log");
