@@ -3541,7 +3541,7 @@ mod tests {
         );
     }
 
-/// Pins the documented TUI↔`--findings` relationship (QA B2 option A):
+    /// Pins the documented TUI↔`--findings` relationship (QA B2 option A):
     /// TUI groups by `(file, signature)` and keeps every Medium+ match; JSON
     /// keeps one strongest signature per source line.
     #[test]
