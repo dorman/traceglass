@@ -22,12 +22,14 @@ only alerts.
 
 ## Expected findings (built-in signatures)
 
-Open with the Incident / Reliability lens. You should see roughly this mix
-(counts can vary slightly if a line hits more than one pattern):
+Open with the Incident / Reliability lens. Findings sort **Critical first**,
+then High, then Medium; within a severity band the lens ranks availability
+signals ahead of runtime/capacity/diagnostics. You should see roughly this
+mix (counts can vary slightly if a line hits more than one pattern):
 
 | Severity | Signature id | Why it appears |
 | -------- | ------------ | -------------- |
-| Critical | `fatal-error-crash` | API worker abort / dump in `case/app/api.log` |
+| Critical | `fatal-error-crash` | API worker abort / dump in `case/app/api.log` (row 1) |
 | High | `resource-exhaustion` | Explicit memory-pressure line in `case/app/api.log` |
 | High | `kubernetes-workload-failure` | Restart-loop / memory-kill markers in `case/k8s/events.log` |
 | High | `container-runtime-failure` | containerd / OCI start failure in `case/system/journal.log` |

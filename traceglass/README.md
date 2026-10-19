@@ -156,8 +156,9 @@ triage grouping; use `--findings` for stable per-line evidence export.
 ### Versioned analysis lenses
 
 The default `general-triage` lens orders recognized evidence by severity and
-stable source location. `incident-reliability` prioritizes availability and
-dependencies, then runtime/deployment, capacity, and diagnostics.
+stable source location. Every lens sorts **Critical → High → Medium** first;
+within the same severity, `incident-reliability` then prioritizes availability
+and dependencies, then runtime/deployment, capacity, and diagnostics, and
 `security-signals` prioritizes protection/integrity, execution/persistence,
 identity/audit, and `other-evidence`. Select a lens for one run with
 `--lens <id>`; the shipped catalog version is `v0.1.0`.

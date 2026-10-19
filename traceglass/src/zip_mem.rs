@@ -46,6 +46,10 @@ pub fn sources_from_zip_bytes(archive_bytes: &[u8]) -> Result<Vec<ScanSource>> {
         if zf.is_dir() {
             continue;
         }
+        // Mirror on-disk ingest: never treat symlink members as text sources.
+        if zf.is_symlink() {
+            continue;
+        }
         if zf.size() > MAX_EXTRACT_FILE_BYTES {
             continue;
         }
@@ -53,7 +57,10 @@ pub fn sources_from_zip_bytes(archive_bytes: &[u8]) -> Result<Vec<ScanSource>> {
             break;
         }
 
-        let mangled = zf.mangled_name();
+        // zip 9.x: mangled_name returns Result.
+        let Ok(mangled) = zf.mangled_name() else {
+            continue;
+        };
         if !safe_zip_member_path(&mangled) {
             continue;
         }
@@ -160,5 +167,22 @@ mod tests {
                 source.name
             );
         }
+    }
+
+    #[test]
+    fn symlink_entries_are_skipped() {
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut zip = zip::ZipWriter::new(&mut cursor);
+            let opts = zip::write::SimpleFileOptions::default();
+            zip.start_file("ok.log", opts).unwrap();
+            zip.write_all(b"FATAL boom\n").unwrap();
+            zip.add_symlink("evil.link", "/etc/passwd", opts).unwrap();
+            zip.finish().unwrap();
+        }
+        let bytes = cursor.into_inner();
+        let sources = sources_from_zip_bytes(&bytes).unwrap();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].name, "ok.log");
     }
 }
