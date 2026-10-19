@@ -287,6 +287,12 @@ fn extract_zip(path: &Path) -> Result<ResolveOutcome> {
         if zf.is_dir() {
             continue;
         }
+        // Never materialize symlink entries: our extractor writes regular
+        // files only, and symlink targets in hostile archives can escape the
+        // extract root (RUSTSEC-2026-0368 / 0369).
+        if zf.is_symlink() {
+            continue;
+        }
         // Skip entries that even *claim* to be oversized; the limited reader
         // below still guards against lying headers.
         if zf.size() > MAX_EXTRACT_FILE_BYTES {
@@ -297,7 +303,11 @@ fn extract_zip(path: &Path) -> Result<ResolveOutcome> {
         }
         // `mangled_name` strips absolute/`..` components, guarding against
         // zip-slip path traversal. Containment check is defense in depth.
-        let out_path = root.join(zf.mangled_name());
+        // zip 9.x returns Result (encoding / path errors → skip entry).
+        let Ok(mangled) = zf.mangled_name() else {
+            continue;
+        };
+        let out_path = root.join(mangled);
         if !path_within(&root, &out_path) {
             continue;
         }
@@ -518,6 +528,55 @@ mod tests {
         assert!(temp.exists());
         // Nothing should have been written outside the temp root.
         assert!(!dir.join("escape.log").exists());
+        fs::remove_dir_all(&temp).ok();
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn extract_zip_skips_symlink_entries() {
+        let dir = std::env::temp_dir().join(format!(
+            "traceglass-test-symlink-zip-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let zip_path = dir.join("links.zip");
+        {
+            let file = File::create(&zip_path).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let opts = zip::write::SimpleFileOptions::default();
+            zip.start_file("safe.log", opts).unwrap();
+            zip.write_all(b"hello from zip\n").unwrap();
+            zip.add_symlink("evil.link", "/etc/passwd", opts).unwrap();
+            zip.add_symlink("rel.link", "../outside.log", opts).unwrap();
+            zip.finish().unwrap();
+        }
+
+        let outcome = extract_zip(&zip_path).unwrap();
+        let names: Vec<_> = outcome.targets.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.iter().any(|n| n.ends_with("safe.log")));
+        assert!(
+            names
+                .iter()
+                .all(|n| !n.contains("evil") && !n.contains("rel"))
+        );
+        let temp = outcome.temp_dir.expect("temp dir");
+        assert!(!temp.join("evil.link").exists());
+        assert!(!temp.join("rel.link").exists());
+        // No symlinks should have been created under the extract root.
+        let mut found_symlink = false;
+        if let Ok(entries) = fs::read_dir(&temp) {
+            for entry in entries.flatten() {
+                if let Ok(ft) = entry.file_type()
+                    && ft.is_symlink()
+                {
+                    found_symlink = true;
+                }
+            }
+        }
+        assert!(!found_symlink, "extractor must not create symlink files");
         fs::remove_dir_all(&temp).ok();
         fs::remove_dir_all(&dir).ok();
     }
