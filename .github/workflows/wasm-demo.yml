@@ -59,7 +59,7 @@ jobs:
 
       - name: Unit test scan API (incl. demo-bundle)
         working-directory: traceglass
-        run: cargo test --no-default-features --features wasm-scan --locked scan::
+        run: cargo test --no-default-features --features wasm-scan --locked "scan::"
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0

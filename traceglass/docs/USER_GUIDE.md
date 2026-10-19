@@ -304,15 +304,18 @@ suggestion until you explicitly accepted it.
 ### Review lenses
 
 Every run uses the versioned `v0.1.0` lens catalog. `general-triage` is the
-default. `incident-reliability` prioritizes availability/dependencies,
-runtime/deployment, capacity, and diagnostics. `security-signals` prioritizes
-protection/integrity, execution/persistence, identity/audit, and then other
-evidence. Use `--lens <id>` in machine or interactive mode, or press `L` in
-the viewer/findings panel. The chooser accepts `j/k`, `1/2/3`, Enter, and Esc.
+default. Findings are always ordered by **severity first** (Critical, then
+High, then Medium). Within the same severity, `incident-reliability`
+prioritizes availability/dependencies, runtime/deployment, capacity, and
+diagnostics; `security-signals` prioritizes protection/integrity,
+execution/persistence, identity/audit, and then other evidence. Use
+`--lens <id>` in machine or interactive mode, or press `L` in the
+viewer/findings panel. The chooser accepts `j/k`, `1/2/3`, Enter, and Esc.
 
-The chosen lens changes only review grouping and deterministic priority. All
-matches, source lines, repeated occurrences, jump targets, severity,
-provenance, explanation, rationale, and false-positive notes remain visible.
+The chosen lens changes only review grouping and deterministic priority within
+a severity band. All matches, source lines, repeated occurrences, jump targets,
+severity, provenance, explanation, rationale, and false-positive notes remain
+visible.
 Unsupported external or legacy evidence goes to `other-evidence`. Changing a
 lens re-ranks cached findings without a rescan and never changes the local
 watchlist. Lens metadata is context for human review, not a security verdict,

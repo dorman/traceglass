@@ -2126,14 +2126,19 @@ impl App {
         self.scan.is_some()
     }
 
-    fn finding_order(&self, finding: &Finding) -> (u32, usize, std::cmp::Reverse<Severity>) {
+    /// Sort key for findings: **severity first** (Critical → Info), then the
+    /// active lens's group priority / group order. Critical crashes therefore
+    /// stay at the top under every lens, including `incident-reliability`
+    /// (which would otherwise bury them under lower-severity availability
+    /// rows whose group priority sorts earlier).
+    fn finding_order(&self, finding: &Finding) -> (std::cmp::Reverse<Severity>, u32, usize) {
         let placement = self
             .lens
             .placement("rust_builtin", self.signatures[finding.sig].id);
         (
+            std::cmp::Reverse(self.signatures[finding.sig].severity),
             placement.priority,
             placement.group_order,
-            std::cmp::Reverse(self.signatures[finding.sig].severity),
         )
     }
 
@@ -2184,27 +2189,31 @@ impl App {
     }
 
     pub fn rerank_findings(&mut self) {
+        // Same key as finalize_scan → finding_order, plus stable location/id.
+        // Local refs avoid borrowing `self` mutably and immutably in sort_by.
         let lens = self.lens.clone();
         let signatures = &self.signatures;
         self.findings.sort_by(|a, b| {
-            let left = lens.placement("rust_builtin", signatures[a.sig].id);
-            let right = lens.placement("rust_builtin", signatures[b.sig].id);
-            (
-                left.priority,
-                left.group_order,
-                std::cmp::Reverse(signatures[a.sig].severity),
-                a.file,
-                a.line,
-                signatures[a.sig].id,
-            )
-                .cmp(&(
-                    right.priority,
-                    right.group_order,
+            let left = {
+                let placement = lens.placement("rust_builtin", signatures[a.sig].id);
+                (
+                    std::cmp::Reverse(signatures[a.sig].severity),
+                    placement.priority,
+                    placement.group_order,
+                )
+            };
+            let right = {
+                let placement = lens.placement("rust_builtin", signatures[b.sig].id);
+                (
                     std::cmp::Reverse(signatures[b.sig].severity),
-                    b.file,
-                    b.line,
-                    signatures[b.sig].id,
-                ))
+                    placement.priority,
+                    placement.group_order,
+                )
+            };
+            left.cmp(&right)
+                .then(a.file.cmp(&b.file))
+                .then(a.line.cmp(&b.line))
+                .then(signatures[a.sig].id.cmp(signatures[b.sig].id))
         });
         self.findings_sel = self.findings_sel.min(self.findings.len().saturating_sub(1));
         self.findings_top = 0;
@@ -3608,6 +3617,40 @@ mod tests {
             counts[Severity::High as usize] + counts[Severity::Critical as usize] > 0,
             "sample.log should yield high/critical findings"
         );
+    }
+
+    /// QA B3: under `incident-reliability`, Critical must lead the list even
+    /// when availability-group Highs have a lower (earlier) lens priority.
+    #[test]
+    fn incident_reliability_lists_critical_before_lower_severity_groups() {
+        let mut app = app_with_paths(&["samples/demo-bundle/case"]);
+        app.lens = Selection::from_id("incident-reliability").expect("lens");
+        run_scan_to_completion(&mut app);
+        assert!(!app.findings.is_empty());
+        let first = app.findings[0];
+        let first_sev = app.signatures[first.sig].severity;
+        assert_eq!(
+            first_sev,
+            Severity::Critical,
+            "row 1 must be Critical under incident-reliability, got {:?} ({})",
+            first_sev,
+            app.signatures[first.sig].id
+        );
+        assert_eq!(app.signatures[first.sig].id, "fatal-error-crash");
+        // No High/Medium may precede any Critical.
+        let mut seen_non_critical = false;
+        for f in &app.findings {
+            let sev = app.signatures[f.sig].severity;
+            if sev == Severity::Critical {
+                assert!(
+                    !seen_non_critical,
+                    "Critical {} appeared after a lower-severity finding",
+                    app.signatures[f.sig].id
+                );
+            } else {
+                seen_non_critical = true;
+            }
+        }
     }
 
     #[test]
