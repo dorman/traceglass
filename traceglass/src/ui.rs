@@ -1551,15 +1551,19 @@ fn findings_filter_tabs(app: &App, counts: [usize; 5], width: u16) -> Line<'stat
     Line::from(spans)
 }
 
-/// Title for the findings popup: the finding count (with the raw hit count when
-/// grouping collapsed repeats) followed by one tally segment per reportable
-/// severity. The tally itself comes from [`severity_tally`] so the header cannot
-/// drift from the severities the filter tabs can select.
+/// Title for the findings popup: the **grouped** finding count (with the raw
+/// line-hit count when grouping collapsed repeats) followed by one tally segment
+/// per reportable severity. The tally itself comes from [`severity_tally`] so the
+/// header cannot drift from the severities the filter tabs can select.
+///
+/// "Grouped" means one row per `(file, signature)` with an occurrence count —
+/// not the same as `--findings` JSON, which keeps one strongest signature per
+/// source line. See the USER_GUIDE findings section.
 fn findings_title(total: usize, hits: usize, counts: [usize; 5]) -> String {
     let scale = if hits > total {
-        format!("{total} ({hits} hits)")
+        format!("{total} grouped ({hits} line hits)")
     } else {
-        format!("{total}")
+        format!("{total} grouped")
     };
     format!(" Scan findings — {scale}   {} ", severity_tally(counts))
 }
@@ -2847,7 +2851,10 @@ mod tests {
     fn findings_title_omits_severities_the_list_cannot_hold() {
         // counts are indexed by `Severity as usize`: info, low, medium, high, crit.
         let title = findings_title(12, 12, [7, 9, 4, 5, 3]);
-        assert_eq!(title, " Scan findings — 12   3 crit · 5 high · 4 med ");
+        assert_eq!(
+            title,
+            " Scan findings — 12 grouped   3 crit · 5 high · 4 med "
+        );
         assert!(!title.contains("low"), "{title}");
         assert!(!title.contains("info"), "{title}");
     }
@@ -2855,9 +2862,10 @@ mod tests {
     #[test]
     fn findings_title_shows_hit_count_only_when_grouping_collapsed_repeats() {
         // More hits than findings: grouping collapsed repeats, so say both.
-        assert!(findings_title(3, 900, [0, 0, 1, 1, 1]).contains("3 (900 hits)"));
+        assert!(findings_title(3, 900, [0, 0, 1, 1, 1]).contains("3 grouped (900 line hits)"));
         // One hit per finding: the parenthetical would be noise.
         assert!(!findings_title(3, 3, [0, 0, 1, 1, 1]).contains("hits"));
+        assert!(findings_title(3, 3, [0, 0, 1, 1, 1]).contains("3 grouped"));
     }
 
     #[test]

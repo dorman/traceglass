@@ -68,6 +68,14 @@ pub fn sources_from_zip_bytes(archive_bytes: &[u8]) -> Result<Vec<ScanSource>> {
         if name.is_empty() || name.split('/').any(|p| p.starts_with('.')) {
             continue;
         }
+        // Match on-disk collection: skip Markdown docs (README.md, …).
+        if name
+            .rsplit('.')
+            .next()
+            .is_some_and(|e| e.eq_ignore_ascii_case("md"))
+        {
+            continue;
+        }
 
         let budget = MAX_EXTRACT_FILE_BYTES
             .min(MAX_LOG_BYTES)
