@@ -86,6 +86,47 @@ jobs:
         traceglass --version
         traceglass --help | head -n 5
 
+  # Guard the declared rust-version in traceglass/Cargo.toml (1.88). Linux
+  # only: MSRV is toolchain policy, not a cross-OS matrix concern.
+  # RUSTUP_TOOLCHAIN overrides rust-toolchain.toml's `channel = "stable"` so
+  # this job actually builds with 1.88 rather than whatever stable is today.
+  msrv:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      RUSTUP_TOOLCHAIN: "1.88"
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Install Rust 1.88 (MSRV)
+      uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable branch @ 2026
+      with:
+        toolchain: "1.88"
+
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        shared-key: msrv-1.88
+        workspaces: traceglass
+
+    - name: Confirm MSRV toolchain
+      working-directory: traceglass
+      run: |
+        rustc --version | grep -F '1.88.'
+        cargo --version | grep -F '1.88.'
+
+    - name: Build (MSRV)
+      working-directory: traceglass
+      run: cargo build --locked
+
+    - name: Test (MSRV)
+      working-directory: traceglass
+      run: cargo test --locked
+
   # Advisories are platform-independent, so this runs once rather than across
   # the build matrix. It only reads Cargo.lock; it does not build the crate.
   audit:

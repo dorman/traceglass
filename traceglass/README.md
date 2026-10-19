@@ -6,10 +6,10 @@ Keyword and regex highlights are user-controlled entries in a local watchlist;
 curated built-in signatures are a separate versioned scan catalog. No AI,
 network access, or log upload is needed.
 
-For L2 / IT reviewers: **[TRUST.md](../TRUST.md)** — plain-language “never
+For L2 / IT reviewers: **[TRUST.md](https://github.com/dorman/traceglass/blob/main/TRUST.md)** — plain-language “never
 phones home” statement, how to verify offline, and checksum / Ed25519 checks.
-Also [`docs/THREAT_MODEL.md`](../docs/THREAT_MODEL.md) and
-[`docs/RELEASE_CHECKLIST.md`](../docs/RELEASE_CHECKLIST.md).
+Also [`docs/THREAT_MODEL.md`](https://github.com/dorman/traceglass/blob/main/docs/THREAT_MODEL.md) and
+[`docs/RELEASE_CHECKLIST.md`](https://github.com/dorman/traceglass/blob/main/docs/RELEASE_CHECKLIST.md).
 
 traceglass is designed for handed-over files and bundles: Docker and container
 logs, Kubernetes/k8s output, systemd/journal logs, nginx logs, MySQL and
@@ -214,9 +214,9 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 ```
 
-The fixture and mode matrix is documented in [`tests/README.md`](tests/README.md).
-Resource limits are documented in [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
+The fixture and mode matrix is documented in [`tests/README.md`](https://github.com/dorman/traceglass/blob/main/traceglass/tests/README.md).
+Resource limits are documented in [`docs/USER_GUIDE.md`](https://github.com/dorman/traceglass/blob/main/traceglass/docs/USER_GUIDE.md).
 
 ## License
 
-MIT License. Copyright (c) 2026 TraceGlass. See [`LICENSE`](LICENSE).
+MIT License. Copyright (c) 2026 TraceGlass. See [`LICENSE`](https://github.com/dorman/traceglass/blob/main/traceglass/LICENSE).

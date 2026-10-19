@@ -28,10 +28,8 @@ jobs:
             target: x86_64-unknown-linux-gnu
             installer: traceglass-installer-x86_64-unknown-linux-gnu
             binary: traceglass
-          # Intel Mac on GitHub-hosted runners (macos-13). If GitHub retires this
-          # image, replace with another Intel-capable hosted label or document
-          # that Intel install smoke must run on a self-hosted Intel Mac.
-          - os: macos-13
+          # Intel Mac: same hosted label as release.yml (macos-15-intel).
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             installer: traceglass-installer-x86_64-apple-darwin
             binary: traceglass
