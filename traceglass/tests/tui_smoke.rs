@@ -506,3 +506,101 @@ fn packaged_binary_reopens_saved_watchlist_in_a_pty() -> Result<(), Box<dyn Erro
     let _ = std::fs::remove_dir_all(config_dir);
     Ok(())
 }
+
+#[test]
+fn packaged_binary_ci_mode_e_jumps_to_first_error_candidate() -> Result<(), Box<dyn Error>> {
+    let binary = std::env::var_os("TRACEGLASS_SMOKE_BINARY")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_BIN_EXE_traceglass")));
+    let fixture =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ci/single_failing_step.txt");
+    let config_dir = std::env::temp_dir().join(format!(
+        "tg-pty-ci-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&config_dir)?;
+    std::fs::write(config_dir.join("config"), "walkthrough=skipped\n")?;
+
+    let pty = native_pty_system().openpty(PtySize {
+        rows: 32,
+        cols: 120,
+        pixel_width: 0,
+        pixel_height: 0,
+    })?;
+    let mut command = CommandBuilder::new(binary);
+    command.arg("--ci");
+    command.arg("--no-scan");
+    command.arg(&fixture);
+    command.env("TRACEGLASS_CONFIG_DIR", &config_dir);
+    let mut child = pty.slave.spawn_command(command)?;
+    drop(pty.slave);
+
+    let mut writer = pty.master.take_writer()?;
+    let mut reader = pty.master.try_clone_reader()?;
+    let (output_tx, output_rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut chunk = [0_u8; 4096];
+        loop {
+            match reader.read(&mut chunk) {
+                Ok(0) | Err(_) => break,
+                Ok(size) => {
+                    if output_tx.send(chunk[..size].to_vec()).is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
+    let mut transcript = String::new();
+    let mut answered_dsr = 0usize;
+
+    assert!(
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "single_failing_step"
+        ) || wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "CI triage"
+        ),
+        "CI log was not opened: {transcript}"
+    );
+    writer.write_all(b"E")?;
+    writer.flush()?;
+    assert!(
+        wait_for_needle(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "first error candidate"
+        ),
+        "E did not jump to first error candidate: {transcript}"
+    );
+    let lower = transcript.to_ascii_lowercase();
+    assert!(
+        lower.contains("worth checking") || lower.contains("##[error]") || lower.contains("error"),
+        "candidate evidence was not rendered: {transcript}"
+    );
+
+    writer.write_all(b"q")?;
+    writer.flush()?;
+    let _ = child.kill();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = child.wait();
+        let _ = tx.send(());
+    });
+    let _ = rx.recv_timeout(Duration::from_secs(2));
+    let _ = std::fs::remove_dir_all(config_dir);
+    Ok(())
+}

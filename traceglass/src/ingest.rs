@@ -93,6 +93,28 @@ pub fn resolve(input: &Path) -> Result<ResolveOutcome> {
     anyhow::bail!("no such file or directory: {}", input.display());
 }
 
+/// For `--ci` triage: when a resolve includes root-level GitHub Actions
+/// `N_<job>.txt` job logs, keep those only (skip per-step subfolder files),
+/// rename tabs to the job name, and order by the numeric prefix so `10_`
+/// follows `2_`. Existing caps still apply to the filtered list.
+///
+/// When no root-level job logs are present, targets are returned unchanged.
+pub fn prefer_ci_job_logs(targets: Vec<LoadTarget>) -> Vec<LoadTarget> {
+    let names: Vec<String> = targets.iter().map(|t| t.name.clone()).collect();
+    let Some(selected) = crate::ci::select_github_job_logs(&names) else {
+        return targets;
+    };
+    let mut out = Vec::with_capacity(selected.len());
+    for (idx, job_name) in selected {
+        let t = &targets[idx];
+        out.push(LoadTarget {
+            path: t.path.clone(),
+            name: job_name,
+        });
+    }
+    out
+}
+
 fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|s| s.to_string_lossy().to_string())
@@ -875,6 +897,61 @@ mod tests {
             "log beyond MAX_DIR_DEPTH must be skipped: {:?}",
             targets.iter().map(|t| &t.name).collect::<Vec<_>>()
         );
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ci_mode_prefers_root_job_logs_and_orders_numerically() {
+        let dir = std::env::temp_dir().join(format!(
+            "traceglass-test-gha-zip-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let zip_path = dir.join("logs.zip");
+        {
+            let file = File::create(&zip_path).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let opts = zip::write::SimpleFileOptions::default();
+            // Root-level job logs (keep): 10_ before 2_ if sorted as strings.
+            zip.start_file("10_deploy.txt", opts).unwrap();
+            zip.write_all(b"##[group]deploy\nProcess completed with exit code 0.\n##[endgroup]\n")
+                .unwrap();
+            zip.start_file("2_build (windows-latest).txt", opts)
+                .unwrap();
+            zip.write_all(b"##[group]build\n##[error]boom\nProcess completed with exit code 1.\n##[endgroup]\n")
+                .unwrap();
+            // Per-step subfolder files (skip when CI filter applies).
+            zip.start_file("2_build (windows-latest)/1_Set up job.txt", opts)
+                .unwrap();
+            zip.write_all(b"per-step setup\n").unwrap();
+            zip.start_file("2_build (windows-latest)/2_Run cargo.txt", opts)
+                .unwrap();
+            zip.write_all(b"per-step build\n").unwrap();
+            zip.finish().unwrap();
+        }
+
+        let outcome = resolve(&zip_path).unwrap();
+        let filtered = prefer_ci_job_logs(outcome.targets);
+        assert_eq!(
+            filtered.len(),
+            2,
+            "names: {:?}",
+            filtered.iter().map(|t| &t.name).collect::<Vec<_>>()
+        );
+        assert_eq!(filtered[0].name, "build (windows-latest)");
+        assert_eq!(filtered[1].name, "deploy");
+        // Confirm per-step content was not selected.
+        for t in &filtered {
+            let body = fs::read_to_string(&t.path).unwrap();
+            assert!(!body.contains("per-step"));
+        }
+
+        if let Some(temp) = outcome.temp_dir {
+            fs::remove_dir_all(temp).ok();
+        }
         fs::remove_dir_all(&dir).ok();
     }
 }

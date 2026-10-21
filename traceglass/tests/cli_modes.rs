@@ -111,6 +111,7 @@ fn help_documents_all_machine_modes() {
     assert!(help.contains("json"));
     assert!(help.contains("csv"));
     assert!(help.contains("--lens"));
+    assert!(help.contains("--ci"));
     assert!(help.contains("--color"));
     assert!(help.contains("--theme"));
     assert!(help.contains("truecolor"));
