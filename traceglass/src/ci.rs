@@ -2,8 +2,8 @@
 //!
 //! Pure text processing with no filesystem access so the WASM demo can reuse
 //! the same parser. Marker and timestamp shapes follow public GitHub Actions
-//! documentation and third-party format notes — not a scrubbed real workflow
-//! log from this repository.
+//! documentation and observed real-log structure — not a scrubbed production
+//! workflow log copied into this repository.
 
 use crate::signatures::Library;
 
@@ -86,23 +86,29 @@ pub fn match_text(line: &str) -> String {
 /// Why a line is worth checking first. Lower discriminant = higher priority.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CandidateRank {
-    /// A `##[error]` annotation.
-    AnnotationError = 0,
-    /// A step that ended with a non-zero exit code.
-    NonZeroStep = 1,
+    /// Compiler / tool `error:` or `error[E0xxx]:` (preferred over annotations).
+    CompilerToolError = 0,
+    /// Jest/Vitest-style test-runner failure line.
+    TestRunnerFailure = 1,
+    /// A `##[error]` annotation (often a location pointer or exit wrapper).
+    AnnotationError = 2,
     /// A built-in signature finding on the match text.
-    SignatureFinding = 2,
-    /// A generic `error:` / `FAILED` line (with false-positive guards).
-    GenericError = 3,
+    SignatureFinding = 3,
+    /// A generic `FAILED` / other fallback line (with false-positive guards).
+    GenericError = 4,
+    /// A step that ended with a non-zero exit code (lowest among concretes).
+    NonZeroStep = 5,
 }
 
 impl CandidateRank {
     pub fn label(self) -> &'static str {
         match self {
+            Self::CompilerToolError => "compiler/tool error",
+            Self::TestRunnerFailure => "test runner",
             Self::AnnotationError => "##[error]",
-            Self::NonZeroStep => "non-zero exit",
             Self::SignatureFinding => "signature",
             Self::GenericError => "generic error",
+            Self::NonZeroStep => "non-zero exit",
         }
     }
 }
@@ -117,7 +123,7 @@ pub struct CiLine {
     pub original: String,
     /// Text used for marker / signature / generic matching.
     pub match_text: String,
-    /// Innermost open `##[group]` name, if any.
+    /// Logical step name for this line, if any.
     pub step_name: Option<String>,
     pub kind: LineKind,
 }
@@ -132,13 +138,21 @@ pub enum LineKind {
     ProcessCompleted { exit_code: i32 },
 }
 
-/// A `##[group]` … `##[endgroup]` region (or an unclosed group through EOF).
+/// A logical CI step: from a top-level step header through following output
+/// until the next step-boundary header (or EOF).
+///
+/// Real GitHub Actions logs often close `##[group]Run …` after only the
+/// command/env header; step output then follows until the next boundary.
+/// Older fixture shape (output inside the group) is still accepted.
 #[derive(Clone, Debug)]
 pub struct CiStep {
     pub name: String,
     pub start_index: usize,
     pub end_index: usize,
     pub exit_code: Option<i32>,
+    /// Evidence the step was optional (`continue-on-error`) or that the job
+    /// continued after it failed. Absent evidence is not treated as optional.
+    pub optional_evidence: bool,
 }
 
 /// Parsed CI log: lines, steps, and no filesystem involvement.
@@ -162,33 +176,58 @@ pub struct ErrorCandidate {
     pub context: Vec<(usize, String)>,
 }
 
+/// Runner step-boundary headers that end the previous logical step.
+fn is_step_boundary_header(name: &str) -> bool {
+    let n = name.trim();
+    n.starts_with("Run ")
+        || n.starts_with("Post ")
+        || n.starts_with("Pre ")
+        || n == "Set up job"
+        || n == "Complete job"
+        || n.starts_with("Evaluate ")
+}
+
 /// Parse a CI / build log into lines and steps.
 ///
 /// Nested or unclosed `##[group]` markers do not panic or loop: the group stack
 /// is bounded by line count, and a missing `##[endgroup]` simply closes at EOF.
+/// After a group ends, output stays attached to the current logical step until
+/// the next step-boundary header (so real GHA post-`endgroup` output is kept).
 pub fn parse_ci_log(text: &str) -> ParsedCiLog {
     let body = strip_bom(text);
     let mut lines = Vec::new();
-    let mut steps = Vec::new();
-    // Stack of (step_index_in_steps, name).
+    let mut steps: Vec<CiStep> = Vec::new();
+    // Stack of (step_index_in_steps, name) for nested group tracking.
     let mut stack: Vec<(usize, String)> = Vec::new();
+    // Logical step for line attribution (survives ##[endgroup]).
+    let mut current_step: Option<usize> = None;
 
     for (index, raw) in body.lines().enumerate() {
-        // `str::lines` already drops `\n` / `\r\n`; keep the visible text.
         let original = raw.to_string();
         let matched = match_text(&original);
-        let step_name = stack.last().map(|(_, n)| n.clone());
         let kind = classify_match_text(&matched);
 
         match &kind {
             LineKind::GroupStart { name } => {
+                let start_new_logical =
+                    stack.is_empty() && (current_step.is_none() || is_step_boundary_header(name));
+                if start_new_logical
+                    && let Some(prev) = current_step
+                    && index > 0
+                {
+                    steps[prev].end_index = index - 1;
+                }
                 let step_idx = steps.len();
                 steps.push(CiStep {
                     name: name.clone(),
                     start_index: index,
                     end_index: index,
                     exit_code: None,
+                    optional_evidence: false,
                 });
+                if start_new_logical {
+                    current_step = Some(step_idx);
+                }
                 stack.push((step_idx, name.clone()));
             }
             LineKind::GroupEnd => {
@@ -197,12 +236,22 @@ pub fn parse_ci_log(text: &str) -> ParsedCiLog {
                 }
             }
             LineKind::ProcessCompleted { exit_code } => {
-                if let Some((step_idx, _)) = stack.last() {
-                    steps[*step_idx].exit_code = Some(*exit_code);
+                if let Some(step_idx) = current_step {
+                    steps[step_idx].exit_code = Some(*exit_code);
+                    steps[step_idx].end_index = index;
                 }
             }
-            _ => {}
+            _ => {
+                if let Some(step_idx) = current_step {
+                    steps[step_idx].end_index = index;
+                }
+            }
         }
+
+        let step_name = stack
+            .last()
+            .map(|(_, n)| n.clone())
+            .or_else(|| current_step.map(|i| steps[i].name.clone()));
 
         lines.push(CiLine {
             index,
@@ -216,12 +265,46 @@ pub fn parse_ci_log(text: &str) -> ParsedCiLog {
     // Unclosed groups: extend through the last line.
     if !lines.is_empty() {
         let last = lines.len() - 1;
-        for (step_idx, _) in stack {
+        for (step_idx, _) in &stack {
+            steps[*step_idx].end_index = last;
+        }
+        if let Some(step_idx) = current_step {
             steps[step_idx].end_index = last;
         }
     }
 
+    annotate_optional_evidence(&mut steps, &lines);
+
     ParsedCiLog { lines, steps }
+}
+
+fn annotate_optional_evidence(steps: &mut [CiStep], lines: &[CiLine]) {
+    for step in steps.iter_mut() {
+        if step.start_index >= lines.len() {
+            continue;
+        }
+        let end = step.end_index.min(lines.len() - 1);
+        if lines[step.start_index..=end].iter().any(|l| {
+            l.match_text
+                .to_ascii_lowercase()
+                .contains("continue-on-error")
+        }) {
+            step.optional_evidence = true;
+        }
+    }
+    for i in 0..steps.len() {
+        if !steps[i].exit_code.is_some_and(|c| c != 0) {
+            continue;
+        }
+        let after = steps[i].end_index;
+        if steps
+            .iter()
+            .skip(i + 1)
+            .any(|s| s.start_index > after && s.name.trim().starts_with("Run "))
+        {
+            steps[i].optional_evidence = true;
+        }
+    }
 }
 
 fn classify_match_text(text: &str) -> LineKind {
@@ -258,14 +341,44 @@ fn parse_process_completed(text: &str) -> Option<i32> {
     digits.parse().ok()
 }
 
+/// Order of failing steps for ranking: prefer the earliest unless an earlier
+/// failure has optional evidence and a later failure exists (then later first).
+fn failing_step_priority(steps: &[CiStep]) -> std::collections::HashMap<usize, u32> {
+    let failed: Vec<usize> = steps
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.exit_code.is_some_and(|c| c != 0))
+        .map(|(i, _)| i)
+        .collect();
+    let mut order = failed.clone();
+    if let Some(&first) = failed.first()
+        && steps[first].optional_evidence
+        && failed.len() > 1
+    {
+        order.reverse();
+    }
+    order
+        .into_iter()
+        .enumerate()
+        .map(|(pri, idx)| (idx, pri as u32))
+        .collect()
+}
+
+fn step_index_for_name(steps: &[CiStep], name: &str) -> Option<usize> {
+    // Prefer the last step with this name that overlaps typical use (unique names).
+    steps.iter().rposition(|s| s.name == name)
+}
+
 /// Rank first-error candidates for a parsed log.
 ///
-/// Order: `##[error]`, then a step that ended non-zero, then built-in signature
-/// findings, then generic `error:` / `FAILED` lines. Returns the earliest
-/// high-rank candidate first, then up to three alternates. Lines like `0 errors`
-/// or "error" inside a package name are not generic candidates.
+/// Within a failing step: compiler/tool `error:` / `error[E0xxx]:`, then
+/// test-runner lines, then `##[error]`, signatures, generic `FAILED`, then the
+/// non-zero exit line. Failing-step order prefers the earliest failure unless
+/// optional-step evidence points at a later one (both stay as candidates).
 pub fn rank_error_candidates(parsed: &ParsedCiLog, library: &Library) -> Vec<ErrorCandidate> {
     let mut candidates: Vec<ErrorCandidate> = Vec::new();
+    let step_priority = failing_step_priority(&parsed.steps);
+    let default_step_pri = step_priority.len() as u32;
 
     for line in &parsed.lines {
         if let Some(c) = candidate_for_line(line, library) {
@@ -313,8 +426,20 @@ pub fn rank_error_candidates(parsed: &ParsedCiLog, library: &Library) -> Vec<Err
     }
 
     candidates.sort_by(|a, b| {
-        a.rank
-            .cmp(&b.rank)
+        let pa = a
+            .step_name
+            .as_deref()
+            .and_then(|n| step_index_for_name(&parsed.steps, n))
+            .and_then(|i| step_priority.get(&i).copied())
+            .unwrap_or(default_step_pri);
+        let pb = b
+            .step_name
+            .as_deref()
+            .and_then(|n| step_index_for_name(&parsed.steps, n))
+            .and_then(|i| step_priority.get(&i).copied())
+            .unwrap_or(default_step_pri);
+        pa.cmp(&pb)
+            .then(a.rank.cmp(&b.rank))
             .then(a.line_index.cmp(&b.line_index))
             .then(a.reason.cmp(&b.reason))
     });
@@ -323,9 +448,60 @@ pub fn rank_error_candidates(parsed: &ParsedCiLog, library: &Library) -> Vec<Err
     let mut seen_lines = std::collections::BTreeSet::new();
     candidates.retain(|c| seen_lines.insert(c.line_index));
 
-    candidates.truncate(1 + ALTERNATE_CANDIDATES);
+    // Keep evidence from other failing steps in the alternate list when an
+    // earlier optional failure exists (do not silently drop them).
+    candidates = select_with_step_diversity(candidates, &parsed.steps, &step_priority);
     attach_context(parsed, &mut candidates);
     candidates
+}
+
+/// Primary first, then one hit per other failing step, then fill alternates.
+fn select_with_step_diversity(
+    sorted: Vec<ErrorCandidate>,
+    steps: &[CiStep],
+    step_priority: &std::collections::HashMap<usize, u32>,
+) -> Vec<ErrorCandidate> {
+    let limit = 1 + ALTERNATE_CANDIDATES;
+    if sorted.len() <= limit {
+        return sorted;
+    }
+    let mut selected = Vec::new();
+    let mut seen_lines = std::collections::BTreeSet::new();
+    let mut seen_steps = std::collections::BTreeSet::new();
+    if let Some(primary) = sorted.first() {
+        seen_lines.insert(primary.line_index);
+        if let Some(name) = &primary.step_name {
+            seen_steps.insert(name.clone());
+        }
+        selected.push(primary.clone());
+    }
+    let mut order: Vec<(u32, usize)> = step_priority.iter().map(|(&i, &p)| (p, i)).collect();
+    order.sort_unstable();
+    for (_, idx) in order {
+        if selected.len() >= limit {
+            break;
+        }
+        let name = &steps[idx].name;
+        if seen_steps.contains(name) {
+            continue;
+        }
+        if let Some(c) = sorted.iter().find(|c| {
+            c.step_name.as_deref() == Some(name.as_str()) && !seen_lines.contains(&c.line_index)
+        }) {
+            seen_lines.insert(c.line_index);
+            seen_steps.insert(name.clone());
+            selected.push(c.clone());
+        }
+    }
+    for c in &sorted {
+        if selected.len() >= limit {
+            break;
+        }
+        if seen_lines.insert(c.line_index) {
+            selected.push(c.clone());
+        }
+    }
+    selected
 }
 
 fn candidate_for_line(line: &CiLine, library: &Library) -> Option<ErrorCandidate> {
@@ -339,7 +515,7 @@ fn candidate_for_line(line: &CiLine, library: &Library) -> Option<ErrorCandidate
                 false_positive_note: Some(
                     "Runner annotations are strong evidence, but retries and continue-on-error steps can emit ##[error] without being the failure worth fixing first.".into(),
                 ),
-                context: Vec::new(), // filled after we have the full line list
+                context: Vec::new(),
             });
         }
         LineKind::ProcessCompleted { exit_code } if exit_code != 0 => {
@@ -355,6 +531,32 @@ fn candidate_for_line(line: &CiLine, library: &Library) -> Option<ErrorCandidate
             });
         }
         _ => {}
+    }
+
+    if is_compiler_tool_error(&line.match_text) {
+        return Some(ErrorCandidate {
+            line_index: line.index,
+            rank: CandidateRank::CompilerToolError,
+            step_name: line.step_name.clone(),
+            reason: "compiler/tool error line".into(),
+            false_positive_note: Some(
+                "Compiler and tool error lines are preferred over ##[error] location annotations that merely point at them.".into(),
+            ),
+            context: Vec::new(),
+        });
+    }
+
+    if is_test_runner_failure(&line.match_text) {
+        return Some(ErrorCandidate {
+            line_index: line.index,
+            rank: CandidateRank::TestRunnerFailure,
+            step_name: line.step_name.clone(),
+            reason: "test-runner failure line".into(),
+            false_positive_note: Some(
+                "Test-runner summaries are evidence worth checking first; flaky or expected failures can still match.".into(),
+            ),
+            context: Vec::new(),
+        });
     }
 
     // Built-in signatures on match text (timestamp/ANSI already stripped).
@@ -402,6 +604,36 @@ fn context_window(lines: &[CiLine], hit: usize) -> Vec<(usize, String)> {
         .collect()
 }
 
+/// Compiler / tool diagnostic: `error:` or `error[E0xxx]:` (and similar codes).
+pub fn is_compiler_tool_error(match_text: &str) -> bool {
+    let t = match_text.trim();
+    if t.is_empty() || is_error_count_summary(t) {
+        return false;
+    }
+    has_error_colon(t) || has_error_code_bracket(t)
+}
+
+/// Jest/Vitest-style failure evidence: `FAIL <path>`, `●` test name, or
+/// `Test Suites: N failed`.
+pub fn is_test_runner_failure(match_text: &str) -> bool {
+    let t = match_text.trim();
+    if t.is_empty() {
+        return false;
+    }
+    if let Some(rest) = t.strip_prefix("FAIL ") {
+        let rest = rest.trim();
+        return !rest.is_empty()
+            && (rest.contains('/') || rest.contains('\\') || rest.contains('.'));
+    }
+    if t.starts_with('●') {
+        return t.chars().count() > 1;
+    }
+    if let Some(rest) = t.strip_prefix("Test Suites:") {
+        return rest.to_ascii_lowercase().contains("failed");
+    }
+    false
+}
+
 /// Generic fallback: `error:` (tool style) or a whole-word `FAILED`.
 /// Rejects `0 errors`, `N error(s)`, and "error" embedded in identifiers.
 pub fn is_generic_error_line(match_text: &str) -> bool {
@@ -413,9 +645,10 @@ pub fn is_generic_error_line(match_text: &str) -> bool {
     if is_error_count_summary(t) {
         return false;
     }
-    // `error:` as a token (compiler / script style), not inside a word.
-    if has_error_colon(t) {
-        return true;
+    // `error:` / `error[E…]:` are classified as compiler/tool (higher rank);
+    // keep them out of the generic bucket so ranking stays consistent.
+    if is_compiler_tool_error(t) {
+        return false;
     }
     // Whole-word `FAILED` (shells / MSBuild). Case-sensitive so summaries like
     // "0 failed" do not become candidates.
@@ -449,6 +682,35 @@ fn has_error_colon(t: &str) -> bool {
                 .is_some_and(|c| !c.is_ascii_alphanumeric() && c != '_' && c != '-');
         if ok_before {
             return true;
+        }
+        search = &search[pos + 6..];
+    }
+    false
+}
+
+/// `error[E0425]:` / `error[E0xxx]:` style diagnostics (rustc and similar).
+fn has_error_code_bracket(t: &str) -> bool {
+    let lower = t.to_ascii_lowercase();
+    let mut search = lower.as_str();
+    while let Some(pos) = search.find("error[") {
+        let before = &search[..pos];
+        let ok_before = before.is_empty()
+            || before
+                .chars()
+                .next_back()
+                .is_some_and(|c| !c.is_ascii_alphanumeric() && c != '_' && c != '-');
+        if ok_before {
+            let after = &search[pos + 6..];
+            if let Some(end) = after.find(']') {
+                let code = &after[..end];
+                let rest = &after[end + 1..];
+                if !code.is_empty()
+                    && code.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                    && rest.starts_with(':')
+                {
+                    return true;
+                }
+            }
         }
         search = &search[pos + 6..];
     }
@@ -581,22 +843,6 @@ no close for outer
     }
 
     #[test]
-    fn ranks_annotation_error_first() {
-        let text = "\
-##[group]Build
-error: stale
-##[error]real failure
-Process completed with exit code 1.
-##[endgroup]
-";
-        let c = first_error_candidates(text, &lib());
-        assert!(!c.is_empty());
-        assert_eq!(c[0].rank, CandidateRank::AnnotationError);
-        assert_eq!(c[0].step_name.as_deref(), Some("Build"));
-        assert!(c[0].context.len() >= 3);
-    }
-
-    #[test]
     fn false_positive_trap_skips_zero_errors_and_package_name() {
         let text = fixture("false_positive_trap.txt");
         let c = first_error_candidates(&text, &lib());
@@ -637,23 +883,45 @@ Process completed with exit code 1.
     fn fixture_clean_pass_has_no_high_rank_candidate() {
         let c = first_error_candidates(&fixture("clean_pass.txt"), &lib());
         assert!(
-            c.iter().all(|x| x.rank > CandidateRank::NonZeroStep),
-            "clean pass should not surface annotation/non-zero candidates: {c:?}"
+            c.iter().all(|x| {
+                !matches!(
+                    x.rank,
+                    CandidateRank::CompilerToolError
+                        | CandidateRank::TestRunnerFailure
+                        | CandidateRank::AnnotationError
+                        | CandidateRank::NonZeroStep
+                )
+            }),
+            "clean pass should not surface concrete failure candidates: {c:?}"
         );
     }
 
     #[test]
-    fn fixture_single_failing_step_prefers_annotation() {
+    fn fixture_single_failing_step_prefers_compiler_error() {
         let c = first_error_candidates(&fixture("single_failing_step.txt"), &lib());
-        assert_eq!(c[0].rank, CandidateRank::AnnotationError);
+        assert_eq!(c[0].rank, CandidateRank::CompilerToolError);
         assert_eq!(c[0].step_name.as_deref(), Some("Run cargo build"));
+        assert!(
+            c[0].context
+                .iter()
+                .any(|(_, t)| t.contains("error: cannot find value")),
+            "expected compiler line, got {:?}",
+            c[0]
+        );
     }
 
     #[test]
-    fn fixture_noisy_setup_still_finds_test_error() {
+    fn fixture_noisy_setup_prefers_fail_line() {
         let c = first_error_candidates(&fixture("noisy_setup_fail.txt"), &lib());
-        assert_eq!(c[0].rank, CandidateRank::AnnotationError);
+        assert_eq!(c[0].rank, CandidateRank::TestRunnerFailure);
         assert_eq!(c[0].step_name.as_deref(), Some("Run npm test"));
+        assert!(
+            c[0].context
+                .iter()
+                .any(|(_, t)| t.contains("FAIL src/billing.test.js")),
+            "expected FAIL line, got {:?}",
+            c[0]
+        );
     }
 
     #[test]
@@ -666,24 +934,70 @@ Process completed with exit code 1.
         let win = fixture("crlf_windows.txt");
         assert!(win.contains('\r') || win.contains("D:\\a\\"));
         let c = first_error_candidates(&win, &lib());
-        assert_eq!(c[0].rank, CandidateRank::AnnotationError);
-        assert!(c[0].context.iter().any(|(_, t)| t.contains("D:\\a\\")));
+        assert_eq!(c[0].rank, CandidateRank::CompilerToolError);
+        assert!(
+            c[0].context
+                .iter()
+                .any(|(_, t)| t.contains("error: CS0103"))
+        );
+        assert!(c.iter().any(|x| {
+            x.rank == CandidateRank::AnnotationError
+                && x.context.iter().any(|(_, t)| t.contains("D:\\a\\"))
+        }));
     }
 
     #[test]
     fn fixture_plain_fallback_and_two_errors() {
         let c = first_error_candidates(&fixture("plain_fallback.txt"), &lib());
         assert!(!c.is_empty());
-        assert!(
-            c[0].rank == CandidateRank::GenericError
-                || c[0].rank == CandidateRank::SignatureFinding
-        );
+        assert!(matches!(
+            c[0].rank,
+            CandidateRank::GenericError
+                | CandidateRank::SignatureFinding
+                | CandidateRank::CompilerToolError
+        ));
 
+        // Job continued after first non-zero → later step preferred; both kept.
         let c = first_error_candidates(&fixture("two_errors.txt"), &lib());
         assert!(c.len() >= 2);
+        assert_eq!(c[0].step_name.as_deref(), Some("Run test"));
         assert_eq!(c[0].rank, CandidateRank::AnnotationError);
-        assert_eq!(c[1].rank, CandidateRank::AnnotationError);
-        assert!(c[0].line_index < c[1].line_index);
+        assert!(c.iter().any(|x| x.step_name.as_deref() == Some("Run lint")));
+    }
+
+    #[test]
+    fn fixture_real_shape_ranking() {
+        let c = first_error_candidates(&fixture("rust_clippy_real_shape.txt"), &lib());
+        assert_eq!(c[0].rank, CandidateRank::CompilerToolError);
+        assert!(
+            c[0].context
+                .iter()
+                .any(|(_, t)| t.contains("error: unneeded return statement"))
+        );
+        assert!(c.iter().any(|x| x.rank == CandidateRank::AnnotationError));
+
+        let c = first_error_candidates(&fixture("jest_fail_real_shape.txt"), &lib());
+        assert_eq!(c[0].rank, CandidateRank::TestRunnerFailure);
+        assert!(
+            c[0].context
+                .iter()
+                .any(|(_, t)| t.contains("FAIL src/checkout.test.ts"))
+        );
+        assert!(c.iter().any(|x| x.rank == CandidateRank::NonZeroStep));
+
+        let parsed = parse_ci_log(&fixture("optional_then_fail.txt"));
+        assert!(
+            parsed
+                .steps
+                .iter()
+                .any(|s| s.name.contains("optional") && s.optional_evidence)
+        );
+        let c = first_error_candidates(&fixture("optional_then_fail.txt"), &lib());
+        assert_eq!(c[0].step_name.as_deref(), Some("Run npm test"));
+        assert!(
+            c.iter()
+                .any(|x| x.step_name.as_deref() == Some("Run optional lint"))
+        );
     }
 
     #[test]
@@ -691,9 +1005,14 @@ Process completed with exit code 1.
         assert!(!is_generic_error_line("Installing super-error-kit 1.0"));
         assert!(!is_generic_error_line("0 errors"));
         assert!(!is_generic_error_line("1 error"));
-        assert!(is_generic_error_line("error: link failed"));
+        assert!(is_compiler_tool_error("error: link failed"));
+        assert!(is_compiler_tool_error("error[E0425]: cannot find value"));
+        assert!(!is_generic_error_line("error: link failed"));
         assert!(is_generic_error_line("Build FAILED"));
         assert!(!is_generic_error_line("0 failed"));
         assert!(!is_generic_error_line("unfailed_check ok"));
+        assert!(is_test_runner_failure("FAIL src/checkout.test.ts"));
+        assert!(is_test_runner_failure("● billing › rejects expired card"));
+        assert!(is_test_runner_failure("Test Suites: 1 failed, 2 passed"));
     }
 }

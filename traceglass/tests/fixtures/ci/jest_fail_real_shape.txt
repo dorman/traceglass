@@ -1,0 +1,17 @@
+2026-10-17T10:00:00.0000000Z ##[group]Set up job
+2026-10-17T10:00:01.0000000Z Runner name: synth-runner-jest
+2026-10-17T10:00:02.0000000Z ##[endgroup]
+2026-10-17T10:00:03.0000000Z ##[group]Run npm test
+2026-10-17T10:00:04.0000000Z [36;1mnpm test[0m
+2026-10-17T10:00:05.0000000Z shell: /usr/bin/bash -e {0}
+2026-10-17T10:00:06.0000000Z ##[endgroup]
+2026-10-17T10:00:07.0000000Z PASS src/ok.test.ts
+2026-10-17T10:00:08.0000000Z FAIL src/checkout.test.ts
+2026-10-17T10:00:09.0000000Z   ● checkout › declines expired card
+2026-10-17T10:00:10.0000000Z     expect(received).toBe(expected)
+2026-10-17T10:00:11.0000000Z Test Suites: 1 failed, 1 passed, 2 total
+2026-10-17T10:00:12.0000000Z Tests:       1 failed, 3 passed, 4 total
+2026-10-17T10:00:13.0000000Z Process completed with exit code 1.
+2026-10-17T10:00:14.0000000Z ##[group]Complete job
+2026-10-17T10:00:15.0000000Z Cleaning up orphan processes
+2026-10-17T10:00:16.0000000Z ##[endgroup]

@@ -820,13 +820,15 @@ mod tests {
             "unexpected status: {status:?}"
         );
         assert!(
-            status.contains("##[error]") || status.contains("worth checking"),
+            status.contains("compiler/tool")
+                || status.contains("##[error]")
+                || status.contains("worth checking"),
             "unexpected status: {status:?}"
         );
-        // Cursor should sit on the ##[error] line (0-based index into lines).
+        // Cursor should sit on the compiler error line (preferred over ##[error]).
         let line = app.file().view[app.file().view_pos];
         assert!(
-            app.file().lines[line].contains("##[error]"),
+            app.file().lines[line].contains("error: cannot find value"),
             "landed on {:?}",
             app.file().lines[line]
         );
