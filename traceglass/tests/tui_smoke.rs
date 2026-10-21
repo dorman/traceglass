@@ -38,9 +38,22 @@ fn ingest_pty_output(
     answer_cursor_position_queries(transcript, answered, writer)
 }
 
+/// Per-step PTY wait ceiling. Windows ConPTY can lag far behind Unix PTYs when
+/// painting popups; keep Unix snappy and give Windows a generous budget.
+fn smoke_step_timeout() -> Duration {
+    if cfg!(windows) {
+        Duration::from_secs(45)
+    } else {
+        Duration::from_secs(15)
+    }
+}
+
 /// Wait for `needle` in content painted after this call. Also accept a needle
 /// that arrived in the same frame as the previous wait by scanning a short
 /// overlap window at the end of the existing transcript.
+///
+/// Prefer [`wait_until_contains`] when the needle may already be present earlier
+/// in the transcript (e.g. findings title + detail share one ConPTY frame).
 fn wait_for_needle(
     transcript: &mut String,
     output_rx: &mpsc::Receiver<Vec<u8>>,
@@ -54,16 +67,56 @@ fn wait_for_needle(
     while start > 0 && !transcript.is_char_boundary(start) {
         start -= 1;
     }
-    let deadline = Instant::now() + Duration::from_secs(10);
+    wait_while(transcript, output_rx, writer, answered, |transcript| {
+        transcript[start..].contains(needle)
+    })
+}
+
+/// Poll the full PTY transcript until `needle` appears (or the smoke ceiling
+/// elapses). Use this for assertions about on-screen state rather than
+/// "arrived since the last keystroke" sequencing.
+fn wait_until_contains(
+    transcript: &mut String,
+    output_rx: &mpsc::Receiver<Vec<u8>>,
+    writer: &mut impl Write,
+    answered: &mut usize,
+    needle: &str,
+) -> bool {
+    wait_while(transcript, output_rx, writer, answered, |transcript| {
+        transcript.contains(needle)
+    })
+}
+
+fn wait_until_contains_ignore_ascii_case(
+    transcript: &mut String,
+    output_rx: &mpsc::Receiver<Vec<u8>>,
+    writer: &mut impl Write,
+    answered: &mut usize,
+    needle: &str,
+) -> bool {
+    let needle = needle.to_ascii_lowercase();
+    wait_while(transcript, output_rx, writer, answered, |transcript| {
+        transcript.to_ascii_lowercase().contains(&needle)
+    })
+}
+
+fn wait_while(
+    transcript: &mut String,
+    output_rx: &mpsc::Receiver<Vec<u8>>,
+    writer: &mut impl Write,
+    answered: &mut usize,
+    mut ready: impl FnMut(&str) -> bool,
+) -> bool {
+    let deadline = Instant::now() + smoke_step_timeout();
     while Instant::now() < deadline {
-        if transcript[start..].contains(needle) {
+        if ready(transcript) {
             return true;
         }
         if let Ok(bytes) = output_rx.recv_timeout(Duration::from_millis(200)) {
             let _ = ingest_pty_output(transcript, &bytes, answered, writer);
         }
     }
-    transcript[start..].contains(needle)
+    ready(transcript)
 }
 
 #[test]
@@ -118,52 +171,82 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
         }
     });
 
-    let deadline = Instant::now() + Duration::from_secs(15);
     let mut transcript = String::new();
     let mut answered_dsr = 0usize;
-    let mut requested_findings = false;
-    let mut saw_findings = false;
-    let mut requested_export = false;
-    let mut saw_export = false;
 
-    while Instant::now() < deadline {
-        if let Ok(bytes) = output_rx.recv_timeout(Duration::from_millis(250)) {
-            ingest_pty_output(&mut transcript, &bytes, &mut answered_dsr, &mut writer)?;
-        }
+    // Open the viewer first. A completed scan with findings auto-opens the
+    // findings panel (`finalize_scan`); do not press `s` on first paint — that
+    // key toggles the panel closed and was the Windows flake (status already
+    // showed "scan: N findings" while the panel title never appeared).
+    assert!(
+        wait_until_contains(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "sample.log"
+        ),
+        "file name was not rendered: {transcript}"
+    );
 
-        if !requested_findings && transcript.contains("sample.log") {
-            writer.write_all(b"s")?;
-            writer.flush()?;
-            requested_findings = true;
-        }
+    // Poll the PTY until the panel title appears (or the Windows-generous
+    // ceiling elapses). Do not send `s`: finalize_scan already opens the panel,
+    // and a late `s` closes it while leaving the "scan: N findings" status.
+    assert!(
+        wait_until_contains_ignore_ascii_case(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "scan findings"
+        ),
+        "findings panel was not rendered: {transcript}"
+    );
+    assert!(
+        transcript.to_ascii_lowercase().contains("high")
+            || transcript.to_ascii_lowercase().contains("medium")
+            || transcript.to_ascii_lowercase().contains("critical"),
+        "severity finding was not rendered: {transcript}"
+    );
 
-        if requested_findings
-            && !saw_findings
-            && transcript.to_ascii_lowercase().contains("scan findings")
-        {
-            saw_findings = true;
-        }
+    // Wait for the selected finding's detail pane (provenance + evidence)
+    // before exporting. Title + detail often share one ConPTY frame, so search
+    // the full transcript rather than a short post-title overlap window.
+    assert!(
+        wait_until_contains(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "source: builtin"
+        ),
+        "finding evidence/provenance was not rendered: {transcript}"
+    );
+    assert!(
+        wait_until_contains_ignore_ascii_case(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "evidence"
+        ),
+        "finding evidence/provenance was not rendered: {transcript}"
+    );
 
-        // Wait for the selected finding's detail pane (provenance + evidence)
-        // before exporting. On Windows ConPTY the list can paint a frame before
-        // the detail lines; exporting immediately made this smoke flake.
-        if saw_findings
-            && !requested_export
-            && transcript.contains("source: builtin")
-            && transcript.to_ascii_lowercase().contains("evidence")
-        {
-            writer.write_all(b"e")?;
-            writer.flush()?;
-            requested_export = true;
-        }
-
-        if requested_export && transcript.to_ascii_lowercase().contains("kept the earlier") {
-            saw_export = true;
-            writer.write_all(b"q")?;
-            writer.flush()?;
-            break;
-        }
-    }
+    writer.write_all(b"e")?;
+    writer.flush()?;
+    assert!(
+        wait_until_contains_ignore_ascii_case(
+            &mut transcript,
+            &output_rx,
+            &mut writer,
+            &mut answered_dsr,
+            "kept the earlier"
+        ),
+        "collision-safe export feedback was not rendered: {transcript}"
+    );
+    writer.write_all(b"q")?;
+    writer.flush()?;
 
     let _ = child.kill();
     // portable-pty children can ignore a late kill; never block the suite.
@@ -173,28 +256,6 @@ fn packaged_binary_opens_file_scans_and_shows_findings_in_a_pty() -> Result<(), 
         let _ = tx.send(());
     });
     let _ = rx.recv_timeout(Duration::from_secs(2));
-    assert!(
-        requested_findings,
-        "file name was not rendered: {transcript}"
-    );
-    assert!(
-        saw_findings,
-        "findings panel was not rendered: {transcript}"
-    );
-    assert!(
-        transcript.to_ascii_lowercase().contains("high")
-            || transcript.to_ascii_lowercase().contains("medium")
-            || transcript.to_ascii_lowercase().contains("critical"),
-        "severity finding was not rendered: {transcript}"
-    );
-    assert!(
-        transcript.contains("source: builtin") && transcript.contains("evidence"),
-        "finding evidence/provenance was not rendered: {transcript}"
-    );
-    assert!(
-        saw_export,
-        "collision-safe export feedback was not rendered: {transcript}"
-    );
     let export = std::fs::read_to_string(export_dir.join("traceglass-findings-2.md"))?;
     assert!(
         export.contains("**source:** `builtin`") || export.contains("source: builtin"),
