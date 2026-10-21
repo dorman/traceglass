@@ -346,11 +346,28 @@ In the findings panel:
 
 - The **severity bar** across the top shows the crit/high/med/low/info mix at
   a glance.
+- The title reads **`N grouped`** (and **`M line hits`** when repeats collapsed),
+  because each row is one `(file, signature)` group — not one row per log line.
 - Each finding shows its severity badge, title, and `file:line`.
 - The **detail box** explains *why the selected finding matters* in plain
   English, with the matched log line.
 - `j`/`k` move · `Enter` (or click a row) jumps straight to that line ·
   `e` exports a markdown summary · `q`/`Esc` closes.
+
+### TUI findings vs `--findings` JSON
+
+These are two deliberate views of the same built-in signature scan:
+
+| Surface | Unit of one row | When a line matches several signatures |
+| --- | --- | --- |
+| TUI findings panel | `(file, signature)` group with a hit count | Every Medium+ match becomes (or joins) its own grouped row |
+| `--findings` JSON | One source line (strongest match only) | Only the highest-severity signature is exported for that line |
+
+So counts and badges can differ for the same input (for example a line that is
+High `postgresql-…` in JSON may also appear as a separate Medium
+`connection-refused-reset` row in the TUI). Markdown export (`e`) follows the
+TUI grouped list. Machine `--findings` stays the stable per-line evidence
+document for scripts and CI.
 
 After a scan, flagged lines keep a colored **severity dot** in the gutter, so
 trouble stays visible while you read normally. Press **`p`** / **`P`** to walk
@@ -580,7 +597,7 @@ traceglass [OPTIONS] [FILES]...
 | `--no-scan` | don't scan on open; press `S` when you want it |
 | `--ci` | CI / build-log triage: prefer GitHub Actions job logs in zips; press `E` for the first error candidate |
 | `--format <raw\|json\|csv>` | force non-interactive output with stable raw/JSON/CSV contracts |
-| `--findings <PATH>` | write matched built-in findings as `traceglass.findings.v1` JSON |
+| `--findings <PATH>` | write per-line strongest-match findings JSON (`traceglass.findings.v1`); see [TUI vs JSON](#tui-findings-vs---findings-json) |
 | `--lens <id>` | select `general-triage` (default), `incident-reliability`, or `security-signals` |
 | `--walkthrough` | replay the interactive walkthrough; machine modes stay non-interactive |
 | `--stdin` | read stdin explicitly, even when it is a terminal |
