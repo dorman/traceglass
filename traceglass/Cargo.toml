@@ -12,7 +12,20 @@ documentation = "https://github.com/dorman/traceglass/blob/main/traceglass/docs/
 readme = "README.md"
 keywords = ["logs", "tui", "diagnostics", "cli", "triage"]
 categories = ["command-line-utilities", "development-tools"]
-exclude = ["samples/big.log", "target/", ".github/", "wasm/"]
+# Keep crates.io tarball to LICENSE/README/src/samples/docs/tests + lenses.
+# Internal design/agent/release scaffolding stays out of the published package.
+exclude = [
+  "target/",
+  ".github/",
+  "wasm/",
+  ".impeccable/",
+  "AGENTS.md",
+  "DESIGN.md",
+  "PRODUCT.md",
+  "SOURCE_COMMIT",
+  "release/",
+  "qa-artifacts/",
+]
 
 [lib]
 name = "traceglass"

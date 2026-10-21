@@ -45,7 +45,7 @@ Pushing the tag runs `.github/workflows/release.yml`, which:
 
 1. Checks the signing secret early
 2. Validates fmt/clippy/tests (CLI + installer), including signature unit tests
-3. Builds Linux x86_64, macOS Apple silicon, macOS Intel (`macos-13`), and Windows
+3. Builds Linux x86_64, macOS Apple silicon, macOS Intel (`macos-15-intel`), and Windows
 4. Signs artifacts with OpenSSL Ed25519 (`pkeyutl -rawin`)
 5. Publishes a GitHub Release (prerelease when the tag contains `-`)
 
@@ -61,7 +61,7 @@ After the release publishes successfully:
 2. Set `tag` to the published tag (for example `v0.1.0-rc.1`)
 3. Confirm all four jobs are green:
    - `ubuntu-latest` → `x86_64-unknown-linux-gnu`
-   - `macos-13` → `x86_64-apple-darwin` (Intel)
+   - `macos-15-intel` → `x86_64-apple-darwin` (Intel)
    - `macos-latest` → `aarch64-apple-darwin` (Apple silicon)
    - `windows-latest` → `x86_64-pc-windows-msvc`
 
@@ -70,9 +70,8 @@ Each job downloads the published installer, verifies `SHA256SUMS` /
 runs `traceglass-installer --tag <tag> --yes --no-path --no-launch`, then runs
 `traceglass --version` and `--help`.
 
-If GitHub retires `macos-13`, the Intel smoke job needs another Intel-capable
-hosted label or a self-hosted Intel Mac; Apple silicon and Linux/Windows smoke
-remain on standard hosted runners.
+Intel smoke uses the same `macos-15-intel` hosted label as `release.yml`. Apple
+silicon and Linux/Windows smoke remain on standard hosted runners.
 
 ## Install a specific rc locally
 

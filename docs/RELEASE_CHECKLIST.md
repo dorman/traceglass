@@ -34,7 +34,7 @@ still open.
 | Item | Detail |
 | ---- | ------ |
 | Trigger | Push tag `v*` or `workflow_dispatch` with tag (`.github/workflows/release.yml`) |
-| Targets (4) | `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-apple-darwin` (Intel smoke on `macos-13`), `x86_64-pc-windows-msvc` |
+| Targets (4) | `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-apple-darwin` (Intel on `macos-15-intel`), `x86_64-pc-windows-msvc` |
 | Artifacts | Per-target installer + payload archive, `traceglass-release.json(.sig)`, `SHA256SUMS(.sig)`, per-artifact `.sig` |
 | Signing | Ed25519 via OpenSSL `pkeyutl -sign … -rawin`; secret `TRACEGLASS_RELEASE_SIGNING_KEY_PEM` |
 | Public trust anchor | `traceglass/installer/src/lib.rs` — key id `traceglass-ed25519-26deb421`, public key base64 `Jt60If+IJMDSQh3x8XN1ctHXwJJEOncGRy/EZGkU/DU=` |
@@ -79,7 +79,7 @@ After the signing secret is set:
 | ------------- | ------------ | ----- |
 | `x86_64-unknown-linux-gnu` | `ubuntu-latest` | [ ] |
 | `aarch64-apple-darwin` | `macos-latest` | [ ] |
-| `x86_64-apple-darwin` | `macos-13` | [ ] (if GitHub retires `macos-13`, need another Intel hosted label or self-hosted Intel Mac) |
+| `x86_64-apple-darwin` | `macos-15-intel` | [ ] |
 | `x86_64-pc-windows-msvc` | `windows-latest` | [ ] |
 
 Per job expectations: download assets → verify `SHA256SUMS` / manifest /
